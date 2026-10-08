@@ -1,0 +1,9 @@
+bin/
+dist/
+test/results/
+.scratch/
+*.test
+*.out
+.idea/
+go.work
+go.work.sum

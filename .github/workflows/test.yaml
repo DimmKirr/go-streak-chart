@@ -1,0 +1,61 @@
+# Shared test pipeline. Called by pr.yaml, dev.yaml and release.yaml so the
+# triggers can diverge (extra steps, environments) without duplicating this.
+name: test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go vet
+        run: go vet ./...
+      - name: docs check (README assets)
+        run: sh scripts/docs-check.sh
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go test -race
+        run: go list ./... | grep -v /test/e2e | xargs go test -race -count=1 -coverprofile=coverage.out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  e2e:
+    name: E2E (headless PTY)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go test ./test/e2e
+        run: go test ./test/e2e/... -count=1 -v
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: test/results/
+          if-no-files-found: warn

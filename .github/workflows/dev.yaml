@@ -1,0 +1,16 @@
+name: dev
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: dev-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yaml

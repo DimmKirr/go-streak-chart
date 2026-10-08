@@ -1,0 +1,38 @@
+version: '3'
+
+tasks:
+  test:
+    desc: Run unit tests with the race detector
+    cmds:
+      - go test -race ./...
+  test:e2e:
+    desc: Run headless PTY e2e tests (writes PNGs to test/results/)
+    cmds:
+      - go test ./test/e2e/... -v -count=1
+  lint:
+    cmds:
+      - golangci-lint run ./...
+      - task: docs:check
+  example:
+    desc: Run the simple-loader demo
+    cmds:
+      - go run ./examples/simple-loader
+  tidy:
+    cmds:
+      - go mod tidy
+  assets:
+    desc: "Record README animations into docs/assets with termproof. All scenes, or: task assets -- beats scattered"
+    cmds:
+      - sh scripts/assets.sh {{.CLI_ARGS}}
+  assets:list:
+    desc: List recorder scene names
+    cmds:
+      - sh scripts/assets.sh list
+  assets:embed:
+    desc: Rewrite the README image embeds between <!-- asset:NAME --> markers
+    cmds:
+      - sh scripts/assets.sh embed
+  docs:check:
+    desc: Verify README image references match docs/assets and recorder scenes
+    cmds:
+      - sh scripts/docs-check.sh

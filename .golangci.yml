@@ -1,0 +1,10 @@
+version: "2"
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - revive
+formatters:
+  enable:
+    - gofmt
