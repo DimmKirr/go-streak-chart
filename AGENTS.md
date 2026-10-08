@@ -48,7 +48,9 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   `shape.complete` is ANDed into every mid-run wait because a 5x10 frame exceeds one PTY read.
 - **Flake triage:** an e2e panic inside `termproof/raster` or `x/image/font` is termproof's concurrent-Render bug
   (present in termproof v0.1.0, fixed in v0.1.1, which go.mod now pins); a panic in this repo's test helpers is a missing nil/mid-redraw guard; a
-  single failure right after a `-race` build that does not reproduce is the cgo/non-cgo build-cache switch.
+  single failure right after a `-race` build that does not reproduce is the cgo/non-cgo build-cache switch;
+  "want amber, got red" on every hue check is the color profile: termenv reports "not a TTY" whenever `CI` is set,
+  so `test/e2e/main_test.go` unsets it before the example inherits the environment (reproduce with `CI=true go test`).
 - CI (`.github/workflows/test.yaml`, shared by pr/dev/release) runs unit tests with `-race` excluding `/test/e2e`,
   then e2e separately and uploads `test/results/` as the `e2e-screenshots` artifact.
 
