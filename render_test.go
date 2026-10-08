@@ -46,40 +46,15 @@ func TestStripANSI(t *testing.T) {
 	}
 }
 
-// assertRuleWidth checks the rule is made of the rule char and is exactly as
-// wide as the widest line of the frame or the theme width, whichever is
-// larger, and returns that width.
-func assertRuleWidth(t *testing.T, g *Grid, th Theme) int {
-	t.Helper()
-	lines := Lines(g, Message{}, th)
-	rule := StripANSI(lines[len(lines)-1])
-	if strings.Trim(rule, "─") != "" {
-		t.Fatalf("rule must be made of the rule char, got %q", rule)
-	}
-	want := th.Width
-	for _, l := range lines[:len(lines)-1] {
-		if n := len([]rune(StripANSI(l))); n > want {
-			want = n
-		}
-	}
-	if got := len([]rune(rule)); got != want {
-		t.Fatalf("rule width %d, want %d = max(widest line, Width %d):\n%s", got, want, th.Width, StripANSI(strings.Join(lines, "\n")))
-	}
-	return want
-}
-
 func TestRender_RuleSpansWidestRow(t *testing.T) {
 	g := NewGrid([]string{"A", "LongerLabel"}, 2)
-	if got, want := assertRuleWidth(t, g, DefaultTheme()), len([]rune("LongerLabel  ▄ ▄")); got != want {
-		t.Fatalf("rule width %d, want %d", got, want)
+	lines := Lines(g, Message{}, DefaultTheme())
+	rule := StripANSI(lines[len(lines)-1])
+	if want := "LongerLabel  ▄ ▄"; len([]rune(rule)) != len([]rune(want)) {
+		t.Fatalf("rule width %d, want %d (%q)", len([]rune(rule)), len([]rune(want)), rule)
 	}
-}
-
-func TestRender_RuleSpansWidthWhenSet(t *testing.T) {
-	th := DefaultTheme()
-	th.Width = 40
-	if got := assertRuleWidth(t, NewGrid([]string{"A"}, 1), th); got != 40 {
-		t.Fatalf("rule width %d, want the theme width 40", got)
+	if strings.Trim(rule, "─") != "" {
+		t.Fatalf("rule must be made of the rule char, got %q", rule)
 	}
 }
 
@@ -108,7 +83,7 @@ func TestRender_RowLayout_ShowsTextPerRow(t *testing.T) {
 	want := []string{
 		"Init        ▄ ▄ ▄  Processing Init: Logger",
 		"Activation  ▄ ▄ ▄  Waiting",
-		strings.Repeat("─", 42), // the widest line, text included
+		"─────────────────",
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Fatal(diff)
@@ -134,18 +109,12 @@ func TestRender_RowLayout_NoFooterLine(t *testing.T) {
 	}
 }
 
-// Without a known width the rule follows the widest line, text included;
-// with one, lines are cut to it and the rule spans exactly the width.
-func TestRender_RowLayout_RuleSpansWidestLine(t *testing.T) {
+func TestRender_RowLayout_RuleIgnoresTextWidth(t *testing.T) {
 	g := NewGrid([]string{"A"}, 1)
 	_ = g.SetRowMessage(0, Message{Text: strings.Repeat("x", 40), Status: Running})
-	th := rowTheme()
-	if got, want := assertRuleWidth(t, g, th), len([]rune("A  ▄  "))+40; got != want {
-		t.Fatalf("rule width %d, want %d (row text included)", got, want)
-	}
-	th.Width = 20
-	if got := assertRuleWidth(t, g, th); got != 20 {
-		t.Fatalf("rule width %d, want the theme width 20", got)
+	lines := strings.Split(StripANSI(Render(g, Message{}, rowTheme())), "\n")
+	if got := len([]rune(lines[1])); got != len([]rune("A  ▄")) {
+		t.Fatalf("rule must span the matrix only, got width %d", got)
 	}
 }
 
@@ -209,7 +178,7 @@ func TestRender_RowLayout_InlineIssuesByDefault(t *testing.T) {
 	want := []string{
 		"Init        ▄ ▄ ▄  Activation X did not go through",
 		"Activation  ▄ ▄ ▄  Build of ABC failed",
-		strings.Repeat("─", 50), // the widest line, text included
+		"─────────────────",
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Fatal(diff)

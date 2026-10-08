@@ -79,8 +79,8 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   per note under the rule, which FooterLayout always uses; NoIssues), `Width` (0 = unlimited; Loader fills it
   from the TTY per draw, teastreak from WindowSizeMsg; lines are cut with `…` so inline notes never wrap and
   break the redraw), `Ramp map[Status]Ramp`,
-  glyphs and rule chars. `Render`/`Lines` are pure and deterministic; the rule spans the full `Width` when it is
-  known (Loader/teastreak), else the matrix width, and never the text, so it never jitters. Default tile is `▄` with a one-space gap, chosen so tile:gap is 1:1 on
+  glyphs and rule chars. `Render`/`Lines` are pure and deterministic; the rule always spans the matrix width,
+  never the text, so it never jitters. Default tile is `▄` with a one-space gap, chosen so tile:gap is 1:1 on
   both axes (see the Linear design doc linked from README).
 - **Loader** (`loader.go`, `clock.go`): all methods take one mutex. `Start` spawns a ticker goroutine that
   pulses the message square's level 1→4→1. Redraw is `\r` + `ESC[nA` + `ESC[J` + frame, with frame lines joined

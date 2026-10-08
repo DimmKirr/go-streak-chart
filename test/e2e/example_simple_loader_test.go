@@ -365,6 +365,27 @@ func assertMatrix(t *testing.T, tm *termproof.Terminal, s shape) {
 	if n := strings.Count(screen, s.cells()); n != s.rows {
 		t.Errorf("want %d rows of %d cells, got %d:\n%s", s.rows, s.cols, n, screen)
 	}
+	assertRuleWidth(t, tm)
+}
+
+// assertRuleWidth checks the rule spans the whole terminal: as wide as the
+// widest screen line or the column count, whichever is larger. The Loader
+// cuts every line to the TTY width, so that is always the column count.
+func assertRuleWidth(t *testing.T, tm *termproof.Terminal) {
+	t.Helper()
+	_, rule := line(t, tm, theme.RuleChar)
+	if strings.Trim(rule, theme.RuleChar) != "" {
+		t.Errorf("rule must be made of %q only, got %q", theme.RuleChar, rule)
+	}
+	want := tm.Width()
+	for y := 0; y < tm.Height(); y++ {
+		if n := len([]rune(tm.Line(y))); n > want {
+			want = n
+		}
+	}
+	if got := len([]rune(rule)); got != want {
+		t.Errorf("rule is %d columns wide, want %d = max(widest line, %d columns):\n%s", got, want, tm.Width(), tm.Screen())
+	}
 }
 
 // assertNoFooter checks that whatever follows the rule is issue notes only,
@@ -453,6 +474,7 @@ func TestExample_SimpleLoader(t *testing.T) {
 	t.Run("Parallel", func(t *testing.T) { forEachShape(t, func(t *testing.T, s shape) { parallelChecks(t, bin, s) }) })
 	t.Run("Beats", func(t *testing.T) { forEachShape(t, func(t *testing.T, s shape) { beatsChecks(t, bin, s) }) })
 	t.Run("Plain", func(t *testing.T) { plainChecks(t, bin) })
+	t.Run("VariableRowCols", func(t *testing.T) { variableRowColsChecks(t, bin) })
 }
 
 func forEachShape(t *testing.T, run func(t *testing.T, s shape)) {
@@ -638,6 +660,7 @@ func rowChecks(t *testing.T, bin string, s shape) {
 		assertExitCode(t, tm.Wait(), 1)
 		settle(t, tm, s)
 		snapshot(t, tm, "final")
+		assertRuleWidth(t, tm)
 		if y := ruleLine(t, tm); y != s.rows {
 			t.Fatalf("rule on line %d, want %d: a row wrapped\n%s", y, s.rows, tm.Screen())
 		}
@@ -899,6 +922,7 @@ func assertInlineIssues(t *testing.T, tm *termproof.Terminal, s shape) {
 			t.Errorf("note must follow the tiles and two spaces, got %q", l)
 		}
 	}
+	assertRuleWidth(t, tm)
 	if y := ruleLine(t, tm); y != s.rows {
 		t.Errorf("rule on line %d, want %d (one line per row)", y, s.rows)
 	}
@@ -907,6 +931,85 @@ func assertInlineIssues(t *testing.T, tm *termproof.Terminal, s shape) {
 			t.Errorf("nothing may follow the rule in inline mode, line %d = %q", y, l)
 		}
 	}
+}
+
+// variableRowColsChecks: rows with different active column counts. Rows
+// with fewer active cells render blank space (no glyph) for trailing
+// columns, keeping the grid aligned. CELL-XXX.
+func variableRowColsChecks(t *testing.T, bin string) {
+	// 3 rows, 5 max cols, but row 1 (Services) gets only 3 active cells.
+	t.Run("BlankTrailingCells", func(t *testing.T) {
+		t.Parallel()
+		tm, _ := start(t, bin, "-rows=3", "-cols=5", "-rowcols=5,3,5", "-error=false", "-mode=parallel")
+		_ = tm.Wait()
+
+		ctx2, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := tm.WaitUntil(ctx2, func(tm *termproof.Terminal) bool {
+			_, ok := findLine(tm, theme.RuleChar)
+			return ok
+		}); err != nil {
+			t.Fatal(err)
+		}
+		snapshot(t, tm, "final")
+
+		// Row 0 (Init): 5 tiles.
+		initTiles := countTiles(tm, "Init")
+		if initTiles != 5 {
+			t.Errorf("Init: want 5 tiles, got %d\n%s", initTiles, tm.Screen())
+		}
+
+		// Row 1 (Services): 3 active tiles, trailing 2 should be blank.
+		svcTiles := countTiles(tm, "Services")
+		if svcTiles != 3 {
+			t.Errorf("Services: want 3 tiles, got %d\n%s", svcTiles, tm.Screen())
+		}
+
+		// Row 2 (Activation): 5 tiles.
+		actTiles := countTiles(tm, "Activation")
+		if actTiles != 5 {
+			t.Errorf("Activation: want 5 tiles, got %d\n%s", actTiles, tm.Screen())
+		}
+	})
+
+	t.Run("RowDoneWithFewerCells", func(t *testing.T) {
+		t.Parallel()
+		tm, _ := start(t, bin, "-rows=3", "-cols=5", "-rowcols=5,3,5", "-error=false")
+		_ = tm.Wait()
+
+		ctx2, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := tm.WaitUntil(ctx2, func(tm *termproof.Terminal) bool {
+			_, ok := findLine(tm, theme.RuleChar)
+			return ok
+		}); err != nil {
+			t.Fatal(err)
+		}
+		snapshot(t, tm, "final")
+
+		// All 3 tiles on Services should be green (done), not grey (pending).
+		hues := rowHues(tm, "Services", 3)
+		for i, h := range hues {
+			if h != "green" {
+				t.Errorf("Services tile %d: want green, got %s\n%s", i, h, tm.Screen())
+			}
+		}
+	})
+}
+
+// countTiles returns the number of ▄ glyphs on label's row.
+func countTiles(tm *termproof.Terminal, label string) int {
+	l, ok := findLine(tm, label)
+	if !ok {
+		return 0
+	}
+	n := 0
+	for _, r := range l {
+		if r == cellRune {
+			n++
+		}
+	}
+	return n
 }
 
 // rowSettled reports whether label's row has finished: every tile is

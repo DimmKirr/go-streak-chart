@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ func main() {
 	issues := flag.String("issues", "inline", `where warning and error notes go: "inline" (on the row, row layout), "log" (under the rule), "none"`)
 	nRows := flag.Int("rows", 3, "number of groups (rows)")
 	nCols := flag.Int("cols", 5, "number of components per group (columns)")
+	rowColsFlag := flag.String("rowcols", "", "comma-separated per-row active column counts (e.g. 5,3,4)")
 	flag.Parse()
 
 	th := streak.DefaultTheme()
@@ -61,6 +63,17 @@ func main() {
 
 	rows, names := shape(*nRows, *nCols)
 	g := streak.NewGrid(rows, *nCols)
+	if *rowColsFlag != "" {
+		for i, s := range strings.Split(*rowColsFlag, ",") {
+			if i >= len(rows) {
+				break
+			}
+			n, err := strconv.Atoi(strings.TrimSpace(s))
+			if err == nil {
+				_ = g.SetRowCols(i, n)
+			}
+		}
+	}
 	opts := []streak.Option{streak.WithWriter(os.Stdout), streak.WithTheme(th), streak.WithIssues(issueMode(*issues))}
 	if *plain {
 		opts = append(opts, streak.WithPlain(true))
@@ -115,11 +128,18 @@ func main() {
 	// Rows in the concurrent modes get their own pace (base step plus 3/8
 	// per row) so they visibly desynchronize.
 	pace := func(r int) time.Duration { return step + step*3*time.Duration(r)/8 }
+	rowN := func(r int) int {
+		n := g.RowCols(r)
+		if n > len(names[r]) {
+			n = len(names[r])
+		}
+		return n
+	}
 
 	switch *mode {
 	case "sequential":
 		for r := range names {
-			runRow(r, step, sequence(*nCols), 1)
+			runRow(r, step, sequence(rowN(r)), 1)
 		}
 	case "parallel", "scattered":
 		var wg sync.WaitGroup
@@ -128,9 +148,9 @@ func main() {
 			go func(r int) {
 				defer wg.Done()
 				if *mode == "scattered" {
-					runRow(r, pace(r), strided(*nCols, r), 2)
+					runRow(r, pace(r), strided(rowN(r), r), 2)
 				} else {
-					runRow(r, pace(r), sequence(*nCols), 1)
+					runRow(r, pace(r), sequence(rowN(r)), 1)
 				}
 			}(r)
 		}
@@ -145,7 +165,7 @@ func main() {
 			go func(r int) {
 				defer wg.Done()
 				next := 0
-				for k, action := range beatScript(r, *nCols) {
+				for k, action := range beatScript(r, rowN(r)) {
 					time.Sleep(time.Until(start.Add(time.Duration(k) * step)))
 					if action == '_' {
 						_ = l.RowMessage(r, "", streak.Pending) // idle this beat
