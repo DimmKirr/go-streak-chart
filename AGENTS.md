@@ -17,8 +17,9 @@ Loader must never enter raw mode or the alternate screen.
 How a host must drive `Loader` so the ticker never races the terminal. Keep the README's "Handing the
 terminal over" section and this list in sync.
 
-1. `l := streak.NewLoader(g, ...)`, `l.Start()`, then `defer l.Close()` on the next line. `Close` implements
-   `io.Closer`: if `Finish` was skipped it finishes with `grid.Worst()` and no footer text, else it is a no-op.
+1. `l := streak.NewLoader(g, ...)`, `l.Start()`, then `defer l.Close()` on the next line. `Close` returns nothing (it
+   cannot fail, and a deferred call must not trip errcheck): if `Finish` was skipped it finishes with
+   `grid.Worst()` and no footer text, else it is a no-op.
    This guarantees the ticker goroutine is stopped on every exit path, including early returns and panics.
 2. Join every producer goroutine (`wg.Wait()`) before `Finish`. After `Finish`/`Close`, `Set`, `RowMessage`,
    `Warn` and `Fail` return `ErrFinished` and write nothing; `Message` is a no-op. Treat `ErrFinished` as a

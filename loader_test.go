@@ -397,9 +397,7 @@ func TestLoader_CloseFinishesWithWorstStatus(t *testing.T) {
 	_ = l.Fail(0, 0, "boom")
 	_ = l.Set(0, 1, Done)
 	fc.Tick()
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
+	l.Close()
 	select {
 	case <-l.stopped:
 	case <-time.After(time.Second):
@@ -414,7 +412,8 @@ func TestLoader_CloseFinishesWithWorstStatus(t *testing.T) {
 	}
 	n := buf.Len()
 	l.Finish("again", Done)
-	if err := l.Close(); err != nil || buf.Len() != n {
+	l.Close()
+	if buf.Len() != n {
 		t.Fatal("Close and Finish after Close must be no-ops")
 	}
 }

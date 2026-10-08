@@ -247,15 +247,15 @@ func (l *Loader) Finish(text string, s Status) {
 }
 
 // Close finishes the loader if the host has not already, using the grid's
-// worst status and no footer text, and returns nil. It implements io.Closer
-// so hosts can `defer l.Close()` right after Start and never leave the
-// ticker writing over whatever takes the terminal next.
-func (l *Loader) Close() error {
+// worst status and no footer text. Put `defer l.Close()` right after Start
+// so the ticker never keeps writing over whatever takes the terminal next.
+// It returns nothing because it cannot fail: write errors are ignored by
+// design (see printf), and a deferred call must not trip errcheck.
+func (l *Loader) Close() {
 	l.mu.Lock()
 	worst := l.grid.Worst()
 	l.mu.Unlock()
 	l.Finish("", worst)
-	return nil
 }
 
 // draw writes the current frame followed by tail in one write. The caller
