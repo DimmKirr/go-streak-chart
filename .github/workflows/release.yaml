@@ -7,19 +7,10 @@ on:
 permissions:
   contents: read
 
+# The GitHub release is created first, as a draft via `git release`, and
+# publishing it is what creates the tag. So by the time this runs the
+# release already exists and there are no assets to attach; the tag only
+# needs the shared test pipeline to run against it.
 jobs:
   test:
     uses: ./.github/workflows/test.yaml
-
-  publish:
-    name: GitHub release
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create release with generated notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
