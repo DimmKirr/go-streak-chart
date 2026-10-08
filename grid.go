@@ -13,6 +13,7 @@ var ErrOutOfRange = errors.New("streak: index out of range")
 type Grid struct {
 	labels  []string
 	cols    int
+	rowCols []int // per-row active cell count; cells beyond this render as blank
 	cells   [][]Status
 	rowMsgs []Message
 	notes   [][]string
@@ -29,12 +30,14 @@ func NewGrid(rows []string, cols int) *Grid {
 	g := &Grid{
 		labels:  append([]string(nil), rows...),
 		cols:    cols,
+		rowCols: make([]int, len(rows)),
 		cells:   make([][]Status, len(rows)),
 		rowMsgs: make([]Message, len(rows)),
 		notes:   make([][]string, len(rows)),
 		noteSeq: make([][]int, len(rows)),
 	}
 	for i := range g.cells {
+		g.rowCols[i] = cols
 		g.cells[i] = make([]Status, cols)
 		g.notes[i] = make([]string, cols)
 		g.noteSeq[i] = make([]int, cols)
@@ -45,8 +48,35 @@ func NewGrid(rows []string, cols int) *Grid {
 // Rows returns the number of rows.
 func (g *Grid) Rows() int { return len(g.labels) }
 
-// Cols returns the number of cells per row.
+// Cols returns the maximum number of cells per row (the grid width).
 func (g *Grid) Cols() int { return g.cols }
+
+// RowCols returns the number of active cells in a row. Cells beyond this
+// count are rendered as blank space for alignment. Returns 0 for out-of-range
+// rows.
+func (g *Grid) RowCols(row int) int {
+	if row < 0 || row >= len(g.rowCols) {
+		return 0
+	}
+	return g.rowCols[row]
+}
+
+// SetRowCols sets the number of active cells in a row. Cells beyond n are
+// not rendered (blank space for alignment) and are excluded from RowDone.
+// n is clamped to [0, Cols()].
+func (g *Grid) SetRowCols(row, n int) error {
+	if row < 0 || row >= len(g.labels) {
+		return ErrOutOfRange
+	}
+	if n < 0 {
+		n = 0
+	}
+	if n > g.cols {
+		n = g.cols
+	}
+	g.rowCols[row] = n
+	return nil
+}
 
 // Label returns the row label, or "" when out of range.
 func (g *Grid) Label(row int) string {
@@ -97,6 +127,7 @@ func (g *Grid) Worst() Status {
 // Clone returns a deep copy.
 func (g *Grid) Clone() *Grid {
 	c := NewGrid(g.labels, g.cols)
+	copy(c.rowCols, g.rowCols)
 	for i := range g.cells {
 		copy(c.cells[i], g.cells[i])
 		copy(c.notes[i], g.notes[i])
@@ -125,13 +156,16 @@ func (g *Grid) RowMessage(row int) Message {
 	return g.rowMsgs[row]
 }
 
-// RowDone reports whether every cell in the row has reached a terminal
-// status (Done, Warning or Error).
+// RowDone reports whether every active cell in the row has reached a
+// terminal status (Done, Warning or Error). Cells beyond RowCols are
+// ignored.
 func (g *Grid) RowDone(row int) bool {
 	if row < 0 || row >= len(g.labels) {
 		return false
 	}
-	for _, s := range g.cells[row] {
+	n := g.rowCols[row]
+	for i := 0; i < n; i++ {
+		s := g.cells[row][i]
 		if s == Pending || s == Running {
 			return false
 		}

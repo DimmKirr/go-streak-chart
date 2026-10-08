@@ -45,9 +45,11 @@ type Ramp [MaxLevel + 1]lipgloss.TerminalColor
 type Theme struct {
 	// Layout selects FooterLayout (default) or RowLayout.
 	Layout Layout
-	// HideIssues suppresses the list of Warning and Error notes under the
-	// rule. Issues are shown by default; see WithIssueLog.
-	HideIssues bool
+	// Issues selects where Warning and Error notes are shown. The zero
+	// value, InlineIssues, keeps them on their row in RowLayout (falling
+	// back to a log under the rule in FooterLayout, which has no row text);
+	// LogIssues always lists them under the rule; NoIssues hides them.
+	Issues IssueMode
 	// Ramp maps each status to its five-step intensity ramp.
 	Ramp map[Status]Ramp
 	// Label styles the row labels.
@@ -66,6 +68,11 @@ type Theme struct {
 	Gap string
 	// RuleChar is repeated to span the widest row. Default "─".
 	RuleChar string
+	// Width, when > 0, caps every rendered line at this many columns with
+	// an ellipsis, so long inline notes never wrap the terminal (a wrapped
+	// line breaks the in-place redraw). Loader fills it from the TTY size;
+	// teastreak from tea.WindowSizeMsg. 0 means unlimited.
+	Width int
 	// RuleText, when set, replaces the spanning rule with literal text.
 	RuleText string
 }
@@ -78,7 +85,10 @@ func adaptive(light, dark string) lipgloss.TerminalColor {
 // Done and analogous five-step ramps for the other statuses. Pending is the
 // flat level-0 grey.
 func DefaultTheme() Theme {
-	grey := adaptive("#ebedf0", "#21262d")
+	// Pending/level-0 grey matches the rule: visible on black and white
+	// backgrounds and on 256- and 16-color terminals (GitHub's #21262d
+	// level-0 square downgrades to black and disappears there).
+	grey := adaptive("#afb8c1", "#484f58")
 	return Theme{
 		Ramp: map[Status]Ramp{
 			Pending: {grey, grey, grey, grey, grey},
@@ -122,4 +132,32 @@ func CellLevel(s Status) Level {
 		return 0
 	}
 	return MaxLevel
+}
+
+// IssueMode selects where Warning and Error notes appear.
+type IssueMode int
+
+const (
+	// InlineIssues (default) keeps a finished row's notes on its own line
+	// in RowLayout, so nothing is printed under the rule and a host can
+	// start the next program exactly rows+2 lines down. FooterLayout has no
+	// row text, so it logs under the rule instead.
+	InlineIssues IssueMode = iota
+	// LogIssues lists notes under the rule, one line each, chronologically.
+	LogIssues
+	// NoIssues hides notes entirely.
+	NoIssues
+)
+
+// String returns the mode name used by flags and docs.
+func (m IssueMode) String() string {
+	switch m {
+	case InlineIssues:
+		return "inline"
+	case LogIssues:
+		return "log"
+	case NoIssues:
+		return "none"
+	}
+	return fmt.Sprintf("IssueMode(%d)", int(m))
 }

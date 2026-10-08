@@ -71,9 +71,8 @@ type Option func(*Model)
 // WithTheme overrides streak.DefaultTheme.
 func WithTheme(t streak.Theme) Option { return func(m *Model) { m.theme = t } }
 
-// WithIssueLog controls whether Warning and Error notes are listed under
-// the rule. On by default.
-func WithIssueLog(on bool) Option { return func(m *Model) { m.theme.HideIssues = !on } }
+// WithIssues selects where Warning and Error notes are shown (see streak.IssueMode).
+func WithIssues(mode streak.IssueMode) Option { return func(m *Model) { m.theme.Issues = mode } }
 
 // WithTick sets the pulse interval. Default 120ms.
 func WithTick(d time.Duration) Option { return func(m *Model) { m.tick = d } }
@@ -128,6 +127,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msg.Level, m.dir = streak.NextPulse(m.msg.Level, m.dir)
 		}
 		return m, m.tickCmd()
+	case tea.WindowSizeMsg:
+		m.theme.Width = v.Width
 	case tea.KeyMsg:
 		if v.Type == tea.KeyCtrlC {
 			return m, tea.Quit

@@ -2,6 +2,7 @@ package streak
 
 import (
 	"fmt"
+	"github.com/charmbracelet/x/term"
 	"io"
 	"os"
 	"strings"
@@ -22,12 +23,15 @@ func WithTheme(t Theme) Option { return func(l *Loader) { l.theme = t } }
 // WithTick sets the redraw and pulse interval. Default 120ms.
 func WithTick(d time.Duration) Option { return func(l *Loader) { l.tick = d } }
 
+// WithWidth caps frame lines at w columns instead of asking the TTY for
+// its size on every draw. 0 restores auto-detection.
+func WithWidth(w int) Option { return func(l *Loader) { l.width = w } }
+
 // WithPlain forces plain mode on or off instead of detecting a TTY.
 func WithPlain(plain bool) Option { return func(l *Loader) { l.forcePlain = &plain } }
 
-// WithIssueLog controls whether notes attached to Warning and Error cells
-// (via Warn and Fail) are listed under the rule. On by default.
-func WithIssueLog(on bool) Option { return func(l *Loader) { l.theme.HideIssues = !on } }
+// WithIssues selects where Warning and Error notes are shown (see IssueMode).
+func WithIssues(m IssueMode) Option { return func(l *Loader) { l.theme.Issues = m } }
 
 func withClock(c clock) Option { return func(l *Loader) { l.clock = c } }
 
@@ -40,6 +44,7 @@ type Loader struct {
 	theme      Theme
 	tick       time.Duration
 	forcePlain *bool
+	width      int // explicit column cap; 0 = detect from the writer when it is a TTY
 	clock      clock
 
 	mu       sync.Mutex
@@ -214,14 +219,18 @@ func (l *Loader) Finish(text string, s Status) {
 
 	l.mu.Lock()
 	l.draw()
-	l.printf("\n")
+	l.printf("\r\n")
 	l.drawn = 0
 	l.mu.Unlock()
 }
 
 // draw writes the current frame. The caller must hold mu.
 func (l *Loader) draw() {
-	lines := Lines(l.grid, l.msg, l.theme)
+	th := l.theme
+	if th.Width == 0 {
+		th.Width = l.termWidth()
+	}
+	lines := Lines(l.grid, l.msg, th)
 	var b strings.Builder
 	if l.drawn > 0 {
 		b.WriteString("\r")
@@ -230,7 +239,7 @@ func (l *Loader) draw() {
 		}
 		b.WriteString("\x1b[J")
 	}
-	b.WriteString(strings.Join(lines, "\n"))
+	b.WriteString(strings.Join(lines, "\r\n"))
 	l.printf("%s", b.String())
 	l.drawn = len(lines)
 }
@@ -246,4 +255,18 @@ func (l *Loader) level() Level {
 // closed or broken terminal must not fail the host's loading sequence.
 func (l *Loader) printf(format string, args ...any) {
 	_, _ = fmt.Fprintf(l.w, format, args...)
+}
+
+// termWidth returns the explicit width, else the writer's terminal width
+// when it is a TTY, else 0 (unlimited).
+func (l *Loader) termWidth() int {
+	if l.width > 0 {
+		return l.width
+	}
+	if f, ok := l.w.(*os.File); ok && term.IsTerminal(f.Fd()) {
+		if w, _, err := term.GetSize(f.Fd()); err == nil && w > 0 {
+			return w
+		}
+	}
+	return 0
 }

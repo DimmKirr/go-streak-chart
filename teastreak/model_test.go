@@ -105,3 +105,26 @@ func TestModel_WarnAndFail(t *testing.T) {
 		t.Fatalf("view must list issues:\n%s", m.View())
 	}
 }
+
+func TestModel_WithIssuesNone(t *testing.T) {
+	g := streak.NewGrid([]string{"A"}, 1)
+	m := New(g, WithIssues(streak.NoIssues))
+	mm, _ := m.Update(Fail(0, 0, "boom"))
+	if out := streak.StripANSI(mm.View()); strings.Contains(out, "boom") {
+		t.Fatalf("issues disabled, got:\n%s", out)
+	}
+}
+
+func TestModel_WindowSizeTruncatesRows(t *testing.T) {
+	g := streak.NewGrid([]string{"A"}, 1)
+	th := streak.DefaultTheme()
+	th.Layout = streak.RowLayout
+	m := New(g, WithTheme(th))
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 20, Height: 10})
+	mm, _ = mm.Update(Fail(0, 0, "a very long note that certainly exceeds twenty columns"))
+	for _, line := range strings.Split(streak.StripANSI(mm.View()), "\n") {
+		if w := len([]rune(line)); w > 20 {
+			t.Fatalf("line wider than the window: %d %q", w, line)
+		}
+	}
+}

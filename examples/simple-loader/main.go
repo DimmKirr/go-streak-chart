@@ -30,7 +30,7 @@ func main() {
 		`"parallel": rows concurrently, cells in order (implies -layout=row); `+
 		`"scattered": rows concurrently, two workers per row over a strided cell order (implies -layout=row); `+
 		`"beats": rows in lockstep on a shared beat, each following a script with stall beats (implies -layout=row)`)
-	issues := flag.Bool("issues", true, "list warning and error notes under the rule")
+	issues := flag.String("issues", "inline", `where warning and error notes go: "inline" (on the row, row layout), "log" (under the rule), "none"`)
 	nRows := flag.Int("rows", 3, "number of groups (rows)")
 	nCols := flag.Int("cols", 5, "number of components per group (columns)")
 	flag.Parse()
@@ -61,7 +61,7 @@ func main() {
 
 	rows, names := shape(*nRows, *nCols)
 	g := streak.NewGrid(rows, *nCols)
-	opts := []streak.Option{streak.WithWriter(os.Stdout), streak.WithTheme(th), streak.WithIssueLog(*issues)}
+	opts := []streak.Option{streak.WithWriter(os.Stdout), streak.WithTheme(th), streak.WithIssues(issueMode(*issues))}
 	if *plain {
 		opts = append(opts, streak.WithPlain(true))
 	}
@@ -258,4 +258,18 @@ func beatScript(row, cols int) string {
 		b.WriteByte('X')
 	}
 	return b.String()
+}
+
+func issueMode(s string) streak.IssueMode {
+	switch s {
+	case "inline":
+		return streak.InlineIssues
+	case "log":
+		return streak.LogIssues
+	case "none":
+		return streak.NoIssues
+	}
+	fmt.Fprintf(os.Stderr, "unknown -issues=%q (inline, log, none)\n", s)
+	os.Exit(2)
+	return streak.InlineIssues
 }

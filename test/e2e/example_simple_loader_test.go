@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	termCols, termRows = 100, 20
+	termCols, termRows = 160, 20 // wide enough for two chained notes on one row
 	timeout            = 60 * time.Second
 
 	warnText = "Search Service answered slowly, using cached index"
@@ -124,8 +124,14 @@ func buildExample(t *testing.T) string {
 // recording.svg is written next to the screenshots when the test ends.
 func start(t *testing.T, bin string, args ...string) (*termproof.Terminal, context.Context) {
 	t.Helper()
+	return startAt(t, bin, termCols, args...)
+}
+
+// startAt is start with an explicit terminal width.
+func startAt(t *testing.T, bin string, cols int, args ...string) (*termproof.Terminal, context.Context) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	tm, err := termproof.Start(ctx, termCols, termRows, bin, append([]string{"-fast"}, args...)...)
+	tm, err := termproof.Start(ctx, cols, termRows, bin, append([]string{"-fast"}, args...)...)
 	if err != nil {
 		cancel()
 		t.Fatal(err)
@@ -249,13 +255,29 @@ func rowHues(tm *termproof.Terminal, label string, cols int) []string {
 			break
 		}
 	}
+	if y == tm.Height() {
+		return nil // the screen changed between the two reads; sample again
+	}
 	hues := make([]string, 0, cols)
 	for x, r := range []rune(l) {
 		if r == cellRune {
-			hues = append(hues, hueOf(tm.CellAt(x, y).Style.Fg))
+			c := tm.CellAt(x, y)
+			if c == nil || c.Content != theme.Glyph {
+				return nil // mid-redraw: the cell under this column moved
+			}
+			hues = append(hues, hueOf(c.Style.Fg))
 		}
 	}
 	return hues
+}
+
+// fg returns the foreground color of a cell, or nil when the cell is off
+// screen, so assertions report a hue mismatch instead of panicking.
+func fg(tm *termproof.Terminal, x, y int) color.Color {
+	if c := tm.CellAt(x, y); c != nil {
+		return c.Style.Fg
+	}
+	return nil
 }
 
 // observeOutcomes polls the screen until the process exits and returns the
@@ -379,7 +401,7 @@ func assertIssues(t *testing.T, tm *termproof.Terminal, timeline [][]outcome, tr
 			if !ok {
 				t.Fatalf("note %q missing under the rule:\n%s", o.text, tm.Screen())
 			}
-			assertHue(t, tm.CellAt(0, ys[p]).Style.Fg, o.hue)
+			assertHue(t, fg(tm, 0, ys[p]), o.hue)
 			// Every note from an earlier group must come before this one.
 			for _, earlier := range timeline[:gi] {
 				for _, e := range earlier {
@@ -405,7 +427,7 @@ func assertOutcomeCells(t *testing.T, tm *termproof.Terminal) {
 	t.Helper()
 	for _, o := range outcomes {
 		x, y := cellAt(t, tm, labels[o.row], o.col)
-		assertHue(t, tm.CellAt(x, y).Style.Fg, o.hue)
+		assertHue(t, fg(tm, x, y), o.hue)
 	}
 }
 
@@ -455,9 +477,9 @@ func footerChecks(t *testing.T, bin string, s shape) {
 		snapshot(t, tm, "mid-run")
 		assertMatrix(t, tm, s)
 		x, y := cellAt(t, tm, s.first(), 0)
-		assertHue(t, tm.CellAt(x, y).Style.Fg, "green")
+		assertHue(t, fg(tm, x, y), "green")
 		x, y = cellAt(t, tm, s.last(), s.cols-1)
-		assertHue(t, tm.CellAt(x, y).Style.Fg, "grey")
+		assertHue(t, fg(tm, x, y), "grey")
 		if ys := underRule(t, tm); len(ys) == 0 || !strings.HasPrefix(tm.Line(ys[len(ys)-1]), string(msgRune)+" Processing Services") {
 			t.Errorf("footer line must be the last line under the rule:\n%s", tm.Screen())
 		}
@@ -474,12 +496,12 @@ func footerChecks(t *testing.T, bin string, s shape) {
 		settle(t, tm, s)
 		snapshot(t, tm, "final")
 		x, y := cellAt(t, tm, "Services", 3)
-		assertHue(t, tm.CellAt(x, y).Style.Fg, "amber")
+		assertHue(t, fg(tm, x, y), "amber")
 		ys := underRule(t, tm)
 		if len(ys) != 2 || !strings.HasSuffix(tm.Line(ys[0]), warnText) || !strings.HasSuffix(tm.Line(ys[1]), doneText) {
 			t.Fatalf("want warning note then footer under the rule:\n%s", tm.Screen())
 		}
-		assertHue(t, tm.CellAt(0, ys[1]).Style.Fg, "amber")
+		assertHue(t, fg(tm, 0, ys[1]), "amber")
 		if n := strings.Count(tm.Screen(), s.first()); n != 1 {
 			t.Fatalf("expected a single frame on screen, found %d:\n%s", n, tm.Screen())
 		}
@@ -498,7 +520,7 @@ func footerChecks(t *testing.T, bin string, s shape) {
 
 	t.Run("IssueLogDisabled", func(t *testing.T) {
 		t.Parallel()
-		tm, ctx := start(t, bin, append(s.args(), "-issues=false")...)
+		tm, ctx := start(t, bin, append(s.args(), "-issues=none")...)
 		if _, err := tm.WaitFor(ctx, errText); err != nil {
 			t.Fatal(err)
 		}
@@ -526,11 +548,10 @@ func rowChecks(t *testing.T, bin string, s shape) {
 	t.Run("ActiveRowText", func(t *testing.T) {
 		t.Parallel()
 		tm, ctx := start(t, bin, args...)
-		// Init runs fastest: wait until it has finished and dropped its text
-		// while at least one slower row is still processing.
+		// Init runs fastest: wait until it has finished (its tiles terminal, its
+		// live text gone) while at least one slower row is still processing.
 		initDoneOthersLive := func(tm *termproof.Terminal) bool {
-			l, ok := findLine(tm, s.first())
-			return ok && strings.HasSuffix(l, s.cells()) && activeRows(tm, s) >= 1 && rowHues(tm, s.first(), s.cols)[0] != "grey"
+			return rowSettled(tm, s, s.first()) && activeRows(tm, s) >= 1
 		}
 		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && initDoneOthersLive(tm) }); err != nil {
 			t.Fatal(err)
@@ -546,8 +567,10 @@ func rowChecks(t *testing.T, bin string, s shape) {
 				t.Errorf("active row must carry its status text after its cells, got %q", l)
 			}
 		}
-		if _, l := line(t, tm, s.first()); !strings.HasSuffix(l, s.cells()) {
-			t.Errorf("done row must drop its status text, got %q", l)
+		// The first row finished with an injected error: its live text is gone
+		// and only the note remains (inline issues, the default).
+		if _, l := line(t, tm, s.first()); strings.Contains(l, "Processing") || !strings.Contains(l, s.cells()+"  "+outcomes[0].text) {
+			t.Errorf("done row must show its note instead of live text, got %q", l)
 		}
 		assertNoFooter(t, tm)
 		_ = tm.Wait()
@@ -593,7 +616,7 @@ func rowChecks(t *testing.T, bin string, s shape) {
 	t.Run("ClearsWhenDone", func(t *testing.T) {
 		t.Parallel()
 		tm, _ := start(t, bin, args...)
-		timeline := observeOutcomes(tm, s)
+		_ = observeOutcomes(tm, s) // blocks until the program exits
 		assertExitCode(t, tm.Wait(), 1)
 		settle(t, tm, s)
 		snapshot(t, tm, "final")
@@ -602,7 +625,40 @@ func rowChecks(t *testing.T, bin string, s shape) {
 		}
 		assertMatrix(t, tm, s)
 		assertOutcomeCells(t, tm)
-		assertIssues(t, tm, timeline) // notes in order of appearance, no footer
+		assertInlineIssues(t, tm, s) // default mode: notes stay on their rows, nothing under the rule
+	})
+
+	// FitsWidth: inline notes are cut with an ellipsis at the terminal width,
+	// so no row wraps, the rule stays on line rows and nothing follows it.
+	t.Run("FitsWidth", func(t *testing.T) {
+		t.Parallel()
+		const narrow = 60
+		tm, _ := startAt(t, bin, narrow, args...)
+		_ = observeOutcomes(tm, s) // blocks until the program exits
+		assertExitCode(t, tm.Wait(), 1)
+		settle(t, tm, s)
+		snapshot(t, tm, "final")
+		if y := ruleLine(t, tm); y != s.rows {
+			t.Fatalf("rule on line %d, want %d: a row wrapped\n%s", y, s.rows, tm.Screen())
+		}
+		cut := 0
+		for y := 0; y < s.rows; y++ {
+			l := tm.Line(y)
+			if n := len([]rune(l)); n > narrow {
+				t.Errorf("line %d is %d columns wide, terminal is %d: %q", y, n, narrow, l)
+			}
+			if strings.HasSuffix(l, "…") {
+				cut++
+			}
+		}
+		if cut == 0 {
+			t.Fatalf("expected at least one truncated row at %d columns:\n%s", narrow, tm.Screen())
+		}
+		for y := s.rows + 1; y < tm.Height(); y++ {
+			if l := tm.Line(y); l != "" {
+				t.Errorf("nothing may follow the rule, line %d = %q", y, l)
+			}
+		}
 	})
 }
 
@@ -629,17 +685,16 @@ func parallelChecks(t *testing.T, bin string, s shape) {
 		t.Parallel()
 		tm, ctx := start(t, bin, args...)
 		// The first row runs fastest and the last slowest, so the first
-		// finishes and drops its text while the last still shows some.
+		// finishes (live text gone) while the last still shows some.
 		firstDoneLastLive := func(tm *termproof.Terminal) bool {
-			f, ok := findLine(tm, s.first())
-			return ok && strings.HasSuffix(f, s.cells()) && rowActive(tm, s, s.last())
+			return rowSettled(tm, s, s.first()) && rowActive(tm, s, s.last())
 		}
 		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && firstDoneLastLive(tm) }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "first-done-last-live")
 		x, y := cellAt(t, tm, s.first(), s.cols-2)
-		assertHue(t, tm.CellAt(x, y).Style.Fg, "green")
+		assertHue(t, fg(tm, x, y), "green")
 		assertExitCode(t, tm.Wait(), 1)
 		settle(t, tm, s)
 		snapshot(t, tm, "final")
@@ -651,7 +706,7 @@ func parallelChecks(t *testing.T, bin string, s shape) {
 
 	t.Run("IssuesInOrderOfAppearance", func(t *testing.T) {
 		t.Parallel()
-		tm, _ := start(t, bin, args...)
+		tm, _ := start(t, bin, append(args, "-issues=log")...) // log mode keeps the chronological list under the rule
 		timeline := observeOutcomes(tm, s)
 		assertExitCode(t, tm.Wait(), 1)
 		settle(t, tm, s)
@@ -721,7 +776,7 @@ func beatsChecks(t *testing.T, bin string, s shape) {
 	t.Run("ClearsWhenDone", func(t *testing.T) {
 		t.Parallel()
 		tm, _ := start(t, bin, args...)
-		timeline := observeOutcomes(tm, s)
+		_ = observeOutcomes(tm, s) // blocks until the program exits
 		assertExitCode(t, tm.Wait(), 1)
 		settle(t, tm, s)
 		snapshot(t, tm, "final")
@@ -730,7 +785,7 @@ func beatsChecks(t *testing.T, bin string, s shape) {
 		}
 		assertMatrix(t, tm, s)
 		assertOutcomeCells(t, tm)
-		assertIssues(t, tm, timeline)
+		assertInlineIssues(t, tm, s)
 	})
 }
 
@@ -816,4 +871,56 @@ func plainChecks(t *testing.T, bin string) {
 			t.Fatalf("expected interleaved row logs, got %d switches:\n%s", switches, out)
 		}
 	})
+}
+
+// assertInlineIssues checks the default issue mode in row layouts: every
+// injected note sits on its own row after the tiles, colored by its status,
+// the rule is the last line of the frame (row r's text on line r, rule on
+// line rows), and nothing follows it, so a host can continue rows+2 down.
+func assertInlineIssues(t *testing.T, tm *termproof.Terminal, s shape) {
+	t.Helper()
+	for _, o := range outcomes {
+		if o.row >= s.rows {
+			continue
+		}
+		y, l := line(t, tm, labels[o.row])
+		if y != o.row {
+			t.Errorf("row %q rendered on line %d, want %d", labels[o.row], y, o.row)
+		}
+		runes := []rune(l)
+		at := strings.Index(l, o.text)
+		if at < 0 {
+			t.Errorf("note %q missing from its row:\n%s", o.text, tm.Screen())
+			continue
+		}
+		x := len([]rune(l[:at]))
+		assertHue(t, fg(tm, x, y), o.hue)
+		if x <= len(runes) && !strings.Contains(l, s.cells()+"  ") {
+			t.Errorf("note must follow the tiles and two spaces, got %q", l)
+		}
+	}
+	if y := ruleLine(t, tm); y != s.rows {
+		t.Errorf("rule on line %d, want %d (one line per row)", y, s.rows)
+	}
+	for y := ruleLine(t, tm) + 1; y < tm.Height(); y++ {
+		if l := tm.Line(y); l != "" {
+			t.Errorf("nothing may follow the rule in inline mode, line %d = %q", y, l)
+		}
+	}
+}
+
+// rowSettled reports whether label's row has finished: every tile is
+// terminal (no grey or blue) and no live "Processing" text remains. In the
+// default inline mode a finished row may still show its notes.
+func rowSettled(tm *termproof.Terminal, s shape, label string) bool {
+	hues := rowHues(tm, label, s.cols)
+	if len(hues) != s.cols {
+		return false
+	}
+	for _, h := range hues {
+		if h == "grey" || h == "blue" {
+			return false
+		}
+	}
+	return !rowActive(tm, s, label)
 }

@@ -104,8 +104,7 @@ func TestLoader_TTY_RedrawSequence(t *testing.T) {
 	if !strings.HasSuffix(out, "\n") {
 		t.Fatal("Finish must end with a newline")
 	}
-	frames := strings.Split(StripANSI(out), "\r")
-	if last := frames[len(frames)-1]; !strings.Contains(last, "ok") || strings.Contains(last, "work") {
+	if last := lastFrame(out); !strings.Contains(last, "ok") || strings.Contains(last, "work") {
 		t.Fatalf("final frame must show finish text only, got %q", last)
 	}
 }
@@ -284,8 +283,18 @@ func TestLoader_Snapshot_IsIndependentCopy(t *testing.T) {
 }
 
 func lastFrame(out string) string {
-	frames := strings.Split(StripANSI(out), "\r")
-	return frames[len(frames)-1]
+	stripped := StripANSI(out)
+	// Frames are separated by \r (the redraw prefix). Lines within a frame
+	// use \r\n, so split on lone \r (not followed by \n) to isolate frames,
+	// then take the last non-empty one.
+	stripped = strings.ReplaceAll(stripped, "\r\n", "\n")
+	frames := strings.Split(stripped, "\r")
+	for i := len(frames) - 1; i >= 0; i-- {
+		if s := strings.TrimSpace(frames[i]); s != "" {
+			return frames[i]
+		}
+	}
+	return stripped
 }
 
 func TestLoader_WarnFail_Plain(t *testing.T) {
@@ -327,13 +336,28 @@ func TestLoader_Issues_StayInFinalFrame(t *testing.T) {
 	}
 }
 
-func TestLoader_WithIssueLogOff(t *testing.T) {
+func TestLoader_WithIssuesNone(t *testing.T) {
 	var buf bytes.Buffer
-	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&buf), WithPlain(false), WithIssueLog(false), withClock(newFakeClock()))
+	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&buf), WithPlain(false), WithIssues(NoIssues), withClock(newFakeClock()))
 	l.Start()
 	_ = l.Fail(0, 0, "Build of ABC failed")
 	l.Finish("done", Error)
 	if strings.Contains(lastFrame(buf.String()), "Build of ABC failed") {
 		t.Fatalf("issue log disabled, got %q", lastFrame(buf.String()))
+	}
+}
+
+func TestLoader_WithWidth_TruncatesFrame(t *testing.T) {
+	var buf bytes.Buffer
+	th := DefaultTheme()
+	th.Layout = RowLayout
+	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&buf), WithPlain(false), WithTheme(th), WithWidth(24), withClock(newFakeClock()))
+	l.Start()
+	_ = l.Fail(0, 0, "a very long note that certainly exceeds twenty-four columns")
+	l.Finish("", Error)
+	for _, line := range strings.Split(StripANSI(lastFrame(buf.String())), "\n") {
+		if w := len([]rune(line)); w > 24 {
+			t.Fatalf("frame line wider than WithWidth: %d %q", w, line)
+		}
 	}
 }

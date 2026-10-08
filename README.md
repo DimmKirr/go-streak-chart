@@ -110,16 +110,23 @@ Rows may also pause and resume independently:
 
 ### Warnings and errors
 
-`Warn` and `Fail` set the cell and attach a note. Notes are listed under the
-rule in the order they happened and stay after the row completes:
+`Warn` and `Fail` set the cell and attach a note. In row layout a finished
+row keeps its notes on its own line, in the order they happened and colored
+by status, and nothing is printed under the rule. The frame is always
+`rows + 1` lines, so a host can hand the terminal to the next process right
+below it. A finished row whose last message carries `Warning` or `Error`
+keeps that message too, for summaries like "Secrets: 18 resolved, 1 failed".
 
 ```go
 l.Warn(1, 3, "Search Service answered slowly, using cached index")
 l.Fail(2, 2, "Health checks failed: 2 of 3 probes timed out")
 ```
 
-Disable the list with `streak.WithIssueLog(false)` or
-`teastreak.WithIssueLog(false)`.
+`WithIssues` selects the mode: `InlineIssues` (default), `LogIssues` (one
+line per note under the rule; what footer layout always uses, since it has
+no row text) or `NoIssues`. Lines are cut with an ellipsis at the terminal
+width so a long note never wraps; `WithWidth` overrides the detected width,
+and `teastreak` follows `tea.WindowSizeMsg`.
 
 ### Theming
 

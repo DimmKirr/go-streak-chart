@@ -7,3 +7,7 @@ test/results/
 .idea/
 go.work
 go.work.sum
+
+# Agent instructions are part of the repo even if a global ignore hides them.
+!AGENTS.md
+!CLAUDE.md
