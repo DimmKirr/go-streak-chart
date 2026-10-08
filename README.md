@@ -125,8 +125,9 @@ l.Fail(2, 2, "Health checks failed: 2 of 3 probes timed out")
 `WithIssues` selects the mode: `InlineIssues` (default), `LogIssues` (one
 line per note under the rule; what footer layout always uses, since it has
 no row text) or `NoIssues`. Lines are cut with an ellipsis at the terminal
-width so a long note never wraps; `WithWidth` overrides the detected width,
-and `teastreak` follows `tea.WindowSizeMsg`.
+width so a long note never wraps, and the rule stretches to that width;
+`WithWidth` overrides the detected width, and `teastreak` follows
+`tea.WindowSizeMsg`.
 
 ### Theming
 

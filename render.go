@@ -33,11 +33,6 @@ func Lines(g *Grid, m Message, t Theme) []string {
 			labelWidth = n
 		}
 	}
-	matrixWidth := labelWidth + 2 + g.Cols()*lipgloss.Width(t.Glyph)
-	if g.Cols() > 1 {
-		matrixWidth += (g.Cols() - 1) * lipgloss.Width(t.Gap)
-	}
-
 	lines := make([]string, 0, g.Rows()+2)
 	for r := 0; r < g.Rows(); r++ {
 		var b strings.Builder
@@ -62,28 +57,38 @@ func Lines(g *Grid, m Message, t Theme) []string {
 				b.WriteString(renderSegments(t, segs))
 			}
 		}
-		lines = append(lines, b.String())
+		lines = append(lines, fit(t, b.String()))
 	}
-	lines = append(lines, t.Rule.Render(rule(t, matrixWidth)))
+	ruleWidth := t.Width
+	for _, l := range lines {
+		if n := lipgloss.Width(l); n > ruleWidth {
+			ruleWidth = n
+		}
+	}
+	lines = append(lines, t.Rule.Render(rule(t, ruleWidth)))
 	if logIssues(t) {
 		for _, is := range g.Issues() {
-			lines = append(lines, cell(t, t.MessageGlyph, is.Status, MaxLevel)+" "+t.Message.Render(is.Text))
+			lines = append(lines, fit(t, cell(t, t.MessageGlyph, is.Status, MaxLevel)+" "+t.Message.Render(is.Text)))
 		}
 	}
 	if t.Layout == FooterLayout && m.Text != "" {
-		lines = append(lines, cell(t, t.MessageGlyph, m.Status, m.Level)+" "+t.Message.Render(m.Text))
-	}
-	if t.Width > 0 {
-		for i, l := range lines {
-			lines[i] = ansi.Truncate(l, t.Width, "…")
-		}
+		lines = append(lines, fit(t, cell(t, t.MessageGlyph, m.Status, m.Level)+" "+t.Message.Render(m.Text)))
 	}
 	return lines
 }
 
-// rule returns RuleText when set, otherwise RuleChar repeated to the matrix
-// width (labels plus cells) so the separator anchors the frame and does not
-// jitter as status text changes.
+// fit cuts a line to Theme.Width with an ellipsis; 0 leaves it untouched.
+func fit(t Theme, line string) string {
+	if t.Width > 0 {
+		return ansi.Truncate(line, t.Width, "…")
+	}
+	return line
+}
+
+// rule returns RuleText when set, otherwise RuleChar repeated to width: the
+// larger of Theme.Width and the widest row line. With a known Width (every
+// TTY host) rows are cut to it, so the rule always spans the terminal and
+// never jitters; without one it spans the widest row, text included.
 func rule(t Theme, width int) string {
 	if t.RuleText != "" {
 		return t.RuleText
