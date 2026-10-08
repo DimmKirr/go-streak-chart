@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/dimmkirr/termproof v0.1.0
+	github.com/dimmkirr/termproof v0.1.1
 	github.com/google/go-cmp v0.7.0
 	github.com/muesli/termenv v0.16.0
 )
