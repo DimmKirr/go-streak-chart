@@ -61,15 +61,15 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   with "C compiler gcc not found". CI's ubuntu runner has gcc, so CI never hits this. Plain `go test` is fine
   without it.
 - **E2E** (`test/e2e/example_simple_loader_test.go`) builds `examples/simple-loader -fast` with `-buildvcs=false`
-  (git stamping fails in sandboxes) and runs it under termproof's headless PTY at 100x20. Tree:
+  (git stamping fails in sandboxes) and runs it under termoscope's headless PTY at 100x20. Tree:
   `TestExample_SimpleLoader/<Mode>/<Shape>/<Check>` with modes Footer, Row (scattered), Parallel, Beats, Plain and
   shapes 3x5, 5x10. Sub-tests run in parallel. Each PTY check leaves PNG + SVG per screen and `recording.svg`
   under `test/results/<ts>-<Test>/`; look at them when a color/layout assertion fails.
 - **Screen reads race the child by design.** Wait predicates sample a live screen, so helpers like `rowHues`
   must return "not ready" (nil) when the screen changed between two reads, never index or dereference blindly.
   `shape.complete` is ANDed into every mid-run wait because a 5x10 frame exceeds one PTY read.
-- **Flake triage:** an e2e panic inside `termproof/raster` or `x/image/font` is termproof's concurrent-Render bug
-  (present in termproof v0.1.0, fixed in v0.1.1, which go.mod now pins); a panic in this repo's test helpers is a missing nil/mid-redraw guard; a
+- **Flake triage:** an e2e panic inside `termoscope/raster` or `x/image/font` is termoscope's concurrent-Render bug
+  (present in v0.1.0, fixed in v0.1.1); a panic in this repo's test helpers is a missing nil/mid-redraw guard; a
   single failure right after a `-race` build that does not reproduce is the cgo/non-cgo build-cache switch;
   "want amber, got red" on every hue check is the color profile: termenv reports "not a TTY" whenever `CI` is set,
   so `test/e2e/main_test.go` unsets it before the example inherits the environment (reproduce with `CI=true go test`).
@@ -80,15 +80,16 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
 
 - **Library deps:** root imports only Lip Gloss v1; `teastreak` adds Bubble Tea v1. Stay on v1 of both (devcell
   pins bubbletea 1.3.x / lipgloss 1.1.x). go-cmp and termenv are test-only.
-- **termproof** (`github.com/dimmkirr/termproof`, lowercase path) is test/tooling-only: imported by
-  `test/e2e` and run as `go tool termproof` (a `tool` directive in go.mod) by `scripts/assets.sh`. Pinned to a
-  tagged release in go.mod. For local work against a sibling checkout use a workspace and do not commit it:
-  `go work init . ../termproof` (go.work is gitignored). Workspace mode cannot satisfy a placeholder version, so
+- **termoscope** (`github.com/dimmkirr/termoscope`, lowercase path; formerly termproof) is test/tooling-only:
+  imported by `test/e2e` and run as `go tool termoscope` (a `tool` directive in go.mod) by `scripts/assets.sh`.
+  Pin a tagged release in go.mod once one exists past the rename: the old `v0.1.x` tags still declare module
+  `termproof`, so only post-rename versions resolve under the new path. For local work against a sibling checkout use a workspace and do not commit it:
+  `go work init . ../termoscope` (go.work is gitignored). Workspace mode cannot satisfy a placeholder version, so
   the require line must always be a real tag/pseudo-version or CI fails with "no required module provides
   package". After editing go.mod, tidy with `GOWORK=off`.
 - **Tool invocations set `CGO_ENABLED=0`** (`scripts/assets.sh`, Taskfile) so `go build`/`go run` of helpers work
   without a C compiler; only `-race` needs cgo.
-- **Chromium** is optional: termproof's own font test uses it; nothing here does. `.scratch/` is where ad-hoc
+- **Chromium** is optional: termoscope's own font test uses it; nothing here does. `.scratch/` is where ad-hoc
   screenshots and tools go.
 
 ## Architecture

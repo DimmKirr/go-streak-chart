@@ -1,5 +1,5 @@
 #!/bin/sh
-# README animations, recorded with the termproof CLI (go tool termproof) and
+# README animations, recorded with the termoscope CLI (go tool termoscope) and
 # embedded into README.md between marker comments:
 #
 #   <!-- asset:footer-layout -->
@@ -61,7 +61,7 @@ scenes | while read -r name flags; do
     case " $* " in *" $name "*) ;; *) continue ;; esac
   fi
   # shellcheck disable=SC2086
-  CGO_ENABLED=0 go tool termproof record -o "docs/assets/$name.svg" -cols 80 -rows 16 -- "$bin" $flags \
+  CGO_ENABLED=0 go tool termoscope record -o "docs/assets/$name.svg" -cols 80 -rows 16 -- "$bin" $flags \
     || true  # the example exits 1 when it injects errors; that is part of the demo
 done
 

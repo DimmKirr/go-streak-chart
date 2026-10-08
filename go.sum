@@ -32,8 +32,8 @@ github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJ
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
 github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
-github.com/dimmkirr/termproof v0.1.1 h1:zt7uKgwlA7x3vVNr59fbWbtoIOVNtIeKbIxHf5nBqC8=
-github.com/dimmkirr/termproof v0.1.1/go.mod h1:JKHQ5ES6/TkHuHDdICpNcEl7237zJJluutc8wGdzfBU=
+github.com/dimmkirr/termoscope v0.1.2-0.20261008132755-70b4b331b867 h1:8KnZiXyE5vam8a/9O3WiZGDJf+Bhny4cm0DxQ8LoVYY=
+github.com/dimmkirr/termoscope v0.1.2-0.20261008132755-70b4b331b867/go.mod h1:chwNHUuY7P/QPU82pJuU+hkOoTzXVuB5IWZfKZhmqJ0=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6baUTXGLOoWe4PQhGxaX0KpnayAqC48p4=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=

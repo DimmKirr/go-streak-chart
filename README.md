@@ -171,13 +171,13 @@ I/O, for custom hosts and tests.
 
 ```sh
 task test       # unit tests with -race
-task test:e2e   # headless PTY tests via termproof; artifacts in test/results/
+task test:e2e   # headless PTY tests via termoscope; artifacts in test/results/
 task lint
 task assets     # re-record the animations above (or: task assets -- beats)
 ```
 
 The animations are recorded from `examples/simple-loader` with
-[termproof](https://github.com/dimmkirr/termproof) and embedded between the
+[termoscope](https://github.com/dimmkirr/termoscope) and embedded between the
 `<!-- asset:NAME -->` markers in this file. `task docs:check` keeps them in
 sync.
 

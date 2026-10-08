@@ -26,7 +26,7 @@ import (
 	"time"
 
 	streak "github.com/dimmkirr/go-streak-chart"
-	"github.com/dimmkirr/termproof"
+	"github.com/dimmkirr/termoscope"
 )
 
 const (
@@ -85,7 +85,7 @@ func (s shape) last() string  { return labels[s.rows-1] }
 // complete reports whether the screen holds a fully drawn matrix: every
 // labelled row with exactly cols tiles, and the rule. Large frames can
 // exceed one PTY read, so a sample may otherwise land mid-redraw.
-func (s shape) complete(tm *termproof.Terminal) bool {
+func (s shape) complete(tm *termoscope.Terminal) bool {
 	for _, l := range labels[:s.rows] {
 		if n := len(rowHues(tm, l, s.cols)); n != s.cols {
 			return false
@@ -96,7 +96,7 @@ func (s shape) complete(tm *termproof.Terminal) bool {
 }
 
 // settle waits briefly for the final frame to be fully drawn after exit.
-func settle(t *testing.T, tm *termproof.Terminal, s shape) {
+func settle(t *testing.T, tm *termoscope.Terminal, s shape) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -122,30 +122,30 @@ func buildExample(t *testing.T) string {
 
 // start runs the example in a PTY at e2e pace and records the whole run;
 // recording.svg is written next to the screenshots when the test ends.
-func start(t *testing.T, bin string, args ...string) (*termproof.Terminal, context.Context) {
+func start(t *testing.T, bin string, args ...string) (*termoscope.Terminal, context.Context) {
 	t.Helper()
 	return startAt(t, bin, termCols, args...)
 }
 
 // startAt is start with an explicit terminal width.
-func startAt(t *testing.T, bin string, cols int, args ...string) (*termproof.Terminal, context.Context) {
+func startAt(t *testing.T, bin string, cols int, args ...string) (*termoscope.Terminal, context.Context) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	tm, err := termproof.Start(ctx, cols, termRows, bin, append([]string{"-fast"}, args...)...)
+	tm, err := termoscope.Start(ctx, cols, termRows, bin, append([]string{"-fast"}, args...)...)
 	if err != nil {
 		cancel()
 		t.Fatal(err)
 	}
 	t.Cleanup(cancel)
-	termproof.Record(t, tm) // closes tm and writes recording.svg on cleanup
+	termoscope.Record(t, tm) // closes tm and writes recording.svg on cleanup
 	return tm, ctx
 }
 
 // snapshot saves the current screen as both a hi-DPI PNG and a static SVG.
-func snapshot(t *testing.T, tm *termproof.Terminal, name string) {
+func snapshot(t *testing.T, tm *termoscope.Terminal, name string) {
 	t.Helper()
-	termproof.SavePNG(t, tm, name)
-	termproof.SaveSVG(t, tm, name)
+	termoscope.SavePNG(t, tm, name)
+	termoscope.SaveSVG(t, tm, name)
 }
 
 func plainRun(t *testing.T, bin string, args ...string) []byte {
@@ -162,7 +162,7 @@ func plainRun(t *testing.T, bin string, args ...string) []byte {
 
 // findLine returns the first screen line starting with prefix, if any.
 // Safe to call from wait predicates while the screen is still blank.
-func findLine(tm *termproof.Terminal, prefix string) (string, bool) {
+func findLine(tm *termoscope.Terminal, prefix string) (string, bool) {
 	for y := 0; y < tm.Height(); y++ {
 		if l := tm.Line(y); strings.HasPrefix(l, prefix) {
 			return l, true
@@ -173,7 +173,7 @@ func findLine(tm *termproof.Terminal, prefix string) (string, bool) {
 
 // line returns the index and text of the first screen line starting with
 // prefix, failing the test when absent.
-func line(t *testing.T, tm *termproof.Terminal, prefix string) (int, string) {
+func line(t *testing.T, tm *termoscope.Terminal, prefix string) (int, string) {
 	t.Helper()
 	for y := 0; y < tm.Height(); y++ {
 		if l := tm.Line(y); strings.HasPrefix(l, prefix) {
@@ -186,7 +186,7 @@ func line(t *testing.T, tm *termproof.Terminal, prefix string) (int, string) {
 
 // cellAt returns the screen coordinates of the n-th (0-based) tile on the
 // row labelled label.
-func cellAt(t *testing.T, tm *termproof.Terminal, label string, n int) (int, int) {
+func cellAt(t *testing.T, tm *termoscope.Terminal, label string, n int) (int, int) {
 	t.Helper()
 	y, l := line(t, tm, label)
 	group := -1
@@ -202,7 +202,7 @@ func cellAt(t *testing.T, tm *termproof.Terminal, label string, n int) (int, int
 	return 0, 0
 }
 
-func ruleLine(t *testing.T, tm *termproof.Terminal) int {
+func ruleLine(t *testing.T, tm *termoscope.Terminal) int {
 	t.Helper()
 	y, _ := line(t, tm, theme.RuleChar)
 	return y
@@ -210,7 +210,7 @@ func ruleLine(t *testing.T, tm *termproof.Terminal) int {
 
 // underRule returns the indexes of the consecutive lines below the rule
 // that start with the status square (issue notes, then the footer if any).
-func underRule(t *testing.T, tm *termproof.Terminal) []int {
+func underRule(t *testing.T, tm *termoscope.Terminal) []int {
 	t.Helper()
 	var ys []int
 	for y := ruleLine(t, tm) + 1; y < tm.Height(); y++ {
@@ -244,7 +244,7 @@ func hueOf(c color.Color) string {
 }
 
 // rowHues returns the hue of every tile on label's row.
-func rowHues(tm *termproof.Terminal, label string, cols int) []string {
+func rowHues(tm *termoscope.Terminal, label string, cols int) []string {
 	l, ok := findLine(tm, label)
 	if !ok {
 		return nil
@@ -273,7 +273,7 @@ func rowHues(tm *termproof.Terminal, label string, cols int) []string {
 
 // fg returns the foreground color of a cell, or nil when the cell is off
 // screen, so assertions report a hue mismatch instead of panicking.
-func fg(tm *termproof.Terminal, x, y int) color.Color {
+func fg(tm *termoscope.Terminal, x, y int) color.Color {
 	if c := tm.CellAt(x, y); c != nil {
 		return c.Style.Fg
 	}
@@ -284,7 +284,7 @@ func fg(tm *termproof.Terminal, x, y int) color.Color {
 // order in which the injected outcome cells turned amber or red. Cells that
 // first appear in the same sample are grouped: their relative order is
 // unknown, so assertions treat each group as unordered.
-func observeOutcomes(tm *termproof.Terminal, s shape) [][]outcome {
+func observeOutcomes(tm *termoscope.Terminal, s shape) [][]outcome {
 	seen := map[int]bool{}
 	var timeline [][]outcome
 	sample := func() {
@@ -317,12 +317,12 @@ func observeOutcomes(tm *termproof.Terminal, s shape) [][]outcome {
 }
 
 // rowActive reports whether label's row currently shows "Processing" text.
-func rowActive(tm *termproof.Terminal, s shape, label string) bool {
+func rowActive(tm *termoscope.Terminal, s shape, label string) bool {
 	l, ok := findLine(tm, label)
 	return ok && strings.Contains(l, s.cells()+"  Processing ")
 }
 
-func activeRows(tm *termproof.Terminal, s shape) int {
+func activeRows(tm *termoscope.Terminal, s shape) int {
 	n := 0
 	for _, l := range labels[:s.rows] {
 		if rowActive(tm, s, l) {
@@ -354,7 +354,7 @@ func absDiff(a, b uint32) uint32 {
 }
 
 // assertMatrix checks every labelled row shows exactly cols tiles.
-func assertMatrix(t *testing.T, tm *termproof.Terminal, s shape) {
+func assertMatrix(t *testing.T, tm *termoscope.Terminal, s shape) {
 	t.Helper()
 	screen := tm.Screen()
 	for _, l := range labels[:s.rows] {
@@ -371,7 +371,7 @@ func assertMatrix(t *testing.T, tm *termproof.Terminal, s shape) {
 // assertRuleWidth checks the rule spans the whole terminal: as wide as the
 // widest screen line or the column count, whichever is larger. The Loader
 // cuts every line to the TTY width, so that is always the column count.
-func assertRuleWidth(t *testing.T, tm *termproof.Terminal) {
+func assertRuleWidth(t *testing.T, tm *termoscope.Terminal) {
 	t.Helper()
 	_, rule := line(t, tm, theme.RuleChar)
 	if strings.Trim(rule, theme.RuleChar) != "" {
@@ -390,7 +390,7 @@ func assertRuleWidth(t *testing.T, tm *termproof.Terminal) {
 
 // assertNoFooter checks that whatever follows the rule is issue notes only,
 // never a live "Processing" footer (row-based layouts have no footer).
-func assertNoFooter(t *testing.T, tm *termproof.Terminal) {
+func assertNoFooter(t *testing.T, tm *termoscope.Terminal) {
 	t.Helper()
 	for _, y := range underRule(t, tm) {
 		if l := tm.Line(y); strings.Contains(l, "Processing") {
@@ -403,7 +403,7 @@ func assertNoFooter(t *testing.T, tm *termproof.Terminal) {
 // rule, listed in the order the cells were observed turning amber or red
 // (timeline), each led by a square of its status color, followed exactly by
 // the given trailing lines (the footer, if any).
-func assertIssues(t *testing.T, tm *termproof.Terminal, timeline [][]outcome, trailing ...string) {
+func assertIssues(t *testing.T, tm *termoscope.Terminal, timeline [][]outcome, trailing ...string) {
 	t.Helper()
 	ys := underRule(t, tm)
 	if want := len(outcomes) + len(trailing); len(ys) != want {
@@ -444,7 +444,7 @@ func assertIssues(t *testing.T, tm *termproof.Terminal, timeline [][]outcome, tr
 }
 
 // assertOutcomeCells checks the injected warning and error tiles.
-func assertOutcomeCells(t *testing.T, tm *termproof.Terminal) {
+func assertOutcomeCells(t *testing.T, tm *termoscope.Terminal) {
 	t.Helper()
 	for _, o := range outcomes {
 		x, y := cellAt(t, tm, labels[o.row], o.col)
@@ -491,7 +491,7 @@ func footerChecks(t *testing.T, bin string, s shape) {
 	t.Run("Matrix", func(t *testing.T) {
 		t.Parallel()
 		tm, ctx := start(t, bin, s.args()...)
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool {
 			return s.complete(tm) && strings.Contains(tm.Screen(), "Processing Services")
 		}); err != nil {
 			t.Fatal(err)
@@ -572,10 +572,10 @@ func rowChecks(t *testing.T, bin string, s shape) {
 		tm, ctx := start(t, bin, args...)
 		// Init runs fastest: wait until it has finished (its tiles terminal, its
 		// live text gone) while at least one slower row is still processing.
-		initDoneOthersLive := func(tm *termproof.Terminal) bool {
+		initDoneOthersLive := func(tm *termoscope.Terminal) bool {
 			return rowSettled(tm, s, s.first()) && activeRows(tm, s) >= 1
 		}
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && initDoneOthersLive(tm) }); err != nil {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool { return s.complete(tm) && initDoneOthersLive(tm) }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "mid-run")
@@ -604,7 +604,7 @@ func rowChecks(t *testing.T, bin string, s shape) {
 		// Proof of non-sequential progress: some row has a finished tile to
 		// the right of an unstarted one, some row has two tiles running, and
 		// at least two rows are in flight at once.
-		scattered := func(tm *termproof.Terminal) bool {
+		scattered := func(tm *termoscope.Terminal) bool {
 			gapBeforeDone, twoRunning := false, false
 			for _, l := range labels[:s.rows] {
 				running, sawGrey := 0, false
@@ -626,7 +626,7 @@ func rowChecks(t *testing.T, bin string, s shape) {
 			}
 			return gapBeforeDone && twoRunning && activeRows(tm, s) >= 2
 		}
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && scattered(tm) }); err != nil {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool { return s.complete(tm) && scattered(tm) }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "mid-run")
@@ -692,7 +692,7 @@ func parallelChecks(t *testing.T, bin string, s shape) {
 	t.Run("ConcurrentText", func(t *testing.T) {
 		t.Parallel()
 		tm, ctx := start(t, bin, args...)
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && activeRows(tm, s) >= 2 }); err != nil {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool { return s.complete(tm) && activeRows(tm, s) >= 2 }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "mid-run")
@@ -709,10 +709,10 @@ func parallelChecks(t *testing.T, bin string, s shape) {
 		tm, ctx := start(t, bin, args...)
 		// The first row runs fastest and the last slowest, so the first
 		// finishes (live text gone) while the last still shows some.
-		firstDoneLastLive := func(tm *termproof.Terminal) bool {
+		firstDoneLastLive := func(tm *termoscope.Terminal) bool {
 			return rowSettled(tm, s, s.first()) && rowActive(tm, s, s.last())
 		}
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && firstDoneLastLive(tm) }); err != nil {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool { return s.complete(tm) && firstDoneLastLive(tm) }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "first-done-last-live")
@@ -761,7 +761,7 @@ func beatsChecks(t *testing.T, bin string, s shape) {
 		tm, ctx := start(t, bin, args...)
 		// During the stall the row shows exactly doneAtStall finished tiles,
 		// nothing running, no text, while other rows keep moving.
-		stalled := func(tm *termproof.Terminal) bool {
+		stalled := func(tm *termoscope.Terminal) bool {
 			hues := rowHues(tm, stallRow, s.cols)
 			if len(hues) != s.cols {
 				return false
@@ -777,7 +777,7 @@ func beatsChecks(t *testing.T, bin string, s shape) {
 			l, _ := findLine(tm, stallRow)
 			return strings.HasSuffix(l, s.cells()) && activeRows(tm, s) >= 1
 		}
-		if err := tm.WaitUntil(ctx, func(tm *termproof.Terminal) bool { return s.complete(tm) && stalled(tm) }); err != nil {
+		if err := tm.WaitUntil(ctx, func(tm *termoscope.Terminal) bool { return s.complete(tm) && stalled(tm) }); err != nil {
 			t.Fatal(err)
 		}
 		snapshot(t, tm, "stall")
@@ -900,7 +900,7 @@ func plainChecks(t *testing.T, bin string) {
 // injected note sits on its own row after the tiles, colored by its status,
 // the rule is the last line of the frame (row r's text on line r, rule on
 // line rows), and nothing follows it, so a host can continue rows+2 down.
-func assertInlineIssues(t *testing.T, tm *termproof.Terminal, s shape) {
+func assertInlineIssues(t *testing.T, tm *termoscope.Terminal, s shape) {
 	t.Helper()
 	for _, o := range outcomes {
 		if o.row >= s.rows {
@@ -945,7 +945,7 @@ func variableRowColsChecks(t *testing.T, bin string) {
 
 		ctx2, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if err := tm.WaitUntil(ctx2, func(tm *termproof.Terminal) bool {
+		if err := tm.WaitUntil(ctx2, func(tm *termoscope.Terminal) bool {
 			_, ok := findLine(tm, theme.RuleChar)
 			return ok
 		}); err != nil {
@@ -979,7 +979,7 @@ func variableRowColsChecks(t *testing.T, bin string) {
 
 		ctx2, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if err := tm.WaitUntil(ctx2, func(tm *termproof.Terminal) bool {
+		if err := tm.WaitUntil(ctx2, func(tm *termoscope.Terminal) bool {
 			_, ok := findLine(tm, theme.RuleChar)
 			return ok
 		}); err != nil {
@@ -998,7 +998,7 @@ func variableRowColsChecks(t *testing.T, bin string) {
 }
 
 // countTiles returns the number of ▄ glyphs on label's row.
-func countTiles(tm *termproof.Terminal, label string) int {
+func countTiles(tm *termoscope.Terminal, label string) int {
 	l, ok := findLine(tm, label)
 	if !ok {
 		return 0
@@ -1015,7 +1015,7 @@ func countTiles(tm *termproof.Terminal, label string) int {
 // rowSettled reports whether label's row has finished: every tile is
 // terminal (no grey or blue) and no live "Processing" text remains. In the
 // default inline mode a finished row may still show its notes.
-func rowSettled(tm *termproof.Terminal, s shape, label string) bool {
+func rowSettled(tm *termoscope.Terminal, s shape, label string) bool {
 	hues := rowHues(tm, label, s.cols)
 	if len(hues) != s.cols {
 		return false

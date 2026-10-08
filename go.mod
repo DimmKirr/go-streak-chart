@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/dimmkirr/termproof v0.1.1
+	github.com/dimmkirr/termoscope v0.1.2-0.20261008132755-70b4b331b867
 	github.com/google/go-cmp v0.7.0
 	github.com/muesli/termenv v0.16.0
 )
@@ -44,4 +44,4 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 )
 
-tool github.com/dimmkirr/termproof/cmd/termproof
+tool github.com/dimmkirr/termoscope/cmd/termoscope

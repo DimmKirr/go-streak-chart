@@ -21,7 +21,7 @@ tasks:
     cmds:
       - go mod tidy
   assets:
-    desc: "Record README animations into docs/assets with termproof. All scenes, or: task assets -- beats scattered"
+    desc: "Record README animations into docs/assets with termoscope. All scenes, or: task assets -- beats scattered"
     cmds:
       - sh scripts/assets.sh {{.CLI_ARGS}}
   assets:list:
