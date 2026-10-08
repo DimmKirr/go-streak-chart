@@ -66,12 +66,14 @@ type Theme struct {
 	MessageGlyph string
 	// Gap separates cells. Default " ".
 	Gap string
-	// RuleChar is repeated to span the widest row. Default "─".
+	// RuleChar is repeated to span the terminal (Width) or, when Width is
+	// 0, the widest row. Default "─".
 	RuleChar string
 	// Width, when > 0, caps every rendered line at this many columns with
 	// an ellipsis, so long inline notes never wrap the terminal (a wrapped
-	// line breaks the in-place redraw). Loader fills it from the TTY size;
-	// teastreak from tea.WindowSizeMsg. 0 means unlimited.
+	// line breaks the in-place redraw), and stretches the rule to the full
+	// width. Loader fills it from the TTY size; teastreak from
+	// tea.WindowSizeMsg. 0 means unlimited: the rule spans the matrix only.
 	Width int
 	// RuleText, when set, replaces the spanning rule with literal text.
 	RuleText string
