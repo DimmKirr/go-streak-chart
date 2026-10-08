@@ -1,6 +1,7 @@
 package streak
 
 import (
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/x/term"
 	"io"
@@ -9,6 +10,10 @@ import (
 	"sync"
 	"time"
 )
+
+// ErrFinished is returned by mutators called after Finish or Close. The
+// final frame is already on screen and must not be disturbed.
+var ErrFinished = errors.New("streak: loader finished")
 
 // Option configures a Loader.
 type Option func(*Loader)
@@ -115,7 +120,7 @@ func (l *Loader) run() {
 				if l.msg.Status == Running {
 					l.msg.Level, l.dir = NextPulse(l.msg.Level, l.dir)
 				}
-				l.draw()
+				l.draw("")
 			}
 			l.mu.Unlock()
 			if a, ok := l.clock.(tickAcker); ok {
@@ -129,6 +134,9 @@ func (l *Loader) run() {
 func (l *Loader) Set(row, col int, s Status) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.finished {
+		return ErrFinished
+	}
 	if err := l.grid.Set(row, col, s); err != nil {
 		return err
 	}
@@ -139,9 +147,13 @@ func (l *Loader) Set(row, col int, s Status) error {
 }
 
 // Message replaces the status line. Running messages pulse on each tick.
+// It is a no-op after Finish or Close.
 func (l *Loader) Message(text string, s Status) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.finished {
+		return
+	}
 	l.msg = Message{Text: text, Status: s, Level: 1}
 	l.dir = 1
 	if l.plain {
@@ -160,6 +172,9 @@ func (l *Loader) Fail(row, col int, text string) error { return l.note(row, col,
 func (l *Loader) note(row, col int, s Status, text string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.finished {
+		return ErrFinished
+	}
 	if err := l.grid.Set(row, col, s); err != nil {
 		return err
 	}
@@ -183,6 +198,9 @@ func (l *Loader) Snapshot() *Grid {
 func (l *Loader) RowMessage(row int, text string, s Status) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.finished {
+		return ErrFinished
+	}
 	if err := l.grid.SetRowMessage(row, Message{Text: text, Status: s, Level: MaxLevel}); err != nil {
 		return err
 	}
@@ -193,7 +211,11 @@ func (l *Loader) RowMessage(row int, text string, s Status) error {
 }
 
 // Finish stops redrawing, draws the final frame at full intensity and
-// leaves it on screen followed by a newline. Subsequent calls are no-ops.
+// leaves it on screen followed by a newline, all in a single write. When
+// Finish returns the ticker goroutine has exited and the frame has been
+// handed to the writer (and flushed, if the writer has a Flush method), so
+// the terminal is safe to pass to another process. Later mutators return
+// ErrFinished. Subsequent calls are no-ops.
 func (l *Loader) Finish(text string, s Status) {
 	l.mu.Lock()
 	if l.finished {
@@ -218,14 +240,27 @@ func (l *Loader) Finish(text string, s Status) {
 	}
 
 	l.mu.Lock()
-	l.draw()
-	l.printf("\r\n")
+	l.draw("\r\n")
 	l.drawn = 0
+	l.flush()
 	l.mu.Unlock()
 }
 
-// draw writes the current frame. The caller must hold mu.
-func (l *Loader) draw() {
+// Close finishes the loader if the host has not already, using the grid's
+// worst status and no footer text, and returns nil. It implements io.Closer
+// so hosts can `defer l.Close()` right after Start and never leave the
+// ticker writing over whatever takes the terminal next.
+func (l *Loader) Close() error {
+	l.mu.Lock()
+	worst := l.grid.Worst()
+	l.mu.Unlock()
+	l.Finish("", worst)
+	return nil
+}
+
+// draw writes the current frame followed by tail in one write. The caller
+// must hold mu.
+func (l *Loader) draw(tail string) {
 	th := l.theme
 	if th.Width == 0 {
 		th.Width = l.termWidth()
@@ -240,8 +275,17 @@ func (l *Loader) draw() {
 		b.WriteString("\x1b[J")
 	}
 	b.WriteString(strings.Join(lines, "\r\n"))
+	b.WriteString(tail)
 	l.printf("%s", b.String())
 	l.drawn = len(lines)
+}
+
+// flush pushes buffered output through writers that expose Flush, such as
+// bufio.Writer. Errors are ignored for the same reason as in printf.
+func (l *Loader) flush() {
+	if f, ok := l.w.(interface{ Flush() error }); ok {
+		_ = f.Flush()
+	}
 }
 
 // level is a test hook returning the current message level.

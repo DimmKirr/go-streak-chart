@@ -80,6 +80,7 @@ func main() {
 	}
 	l := streak.NewLoader(g, opts...)
 	l.Start()
+	defer l.Close() // stops the ticker on every exit path; a no-op after Finish
 
 	// runCell processes one component: mark it running, publish its text,
 	// wait d, then land the outcome (one injected warning, three errors).

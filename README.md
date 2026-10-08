@@ -29,6 +29,7 @@ to call from any goroutine.
 g := streak.NewGrid([]string{"Init", "Services", "Activation"}, 5)
 l := streak.NewLoader(g, streak.WithWriter(os.Stdout))
 l.Start()
+defer l.Close() // safety net: finishes with the worst status if Finish is skipped
 
 l.Set(0, 0, streak.Running)
 l.Message("Processing Init: Config", streak.Running)
@@ -37,6 +38,28 @@ l.Set(0, 0, streak.Done)
 
 l.Finish("All components loaded", streak.Done)
 ```
+
+### Handing the terminal over
+
+The ticker goroutine writes frames until `Finish` or `Close` runs. Call one
+of them before `exec`, `os.Exit`, or any other writer takes the terminal.
+When `Finish` returns, the ticker has exited and the final frame plus its
+newline were handed to the writer in a single write, so nothing from the
+loader can land on the screen afterwards. The rules for a clean hand-over:
+
+- `defer l.Close()` right after `Start`. `Close` finishes with the grid's
+  worst status and no footer text when `Finish` was skipped, and is a
+  no-op otherwise, so every exit path stops the ticker.
+- Join all producers (`wg.Wait()`) before `Finish`. Mutators called after
+  `Finish` return `ErrFinished` and write nothing, so a straggler goroutine
+  cannot corrupt the final frame; `Message` becomes a no-op.
+- Keep other output off the loader's writer while it runs. The loader
+  redraws by moving the cursor up over its own lines, so interleaved
+  logging shifts the frame. Log to the other stream or after `Finish`.
+- Signals are the host's job: on SIGINT call `Finish` or `Close` before
+  exiting, otherwise the cursor is left inside the matrix.
+- Writers with a `Flush() error` method (such as `bufio.Writer`) are
+  flushed by `Finish`; `os.Stdout` and `os.Stderr` are unbuffered.
 
 ### Bubble Tea
 
@@ -92,7 +115,7 @@ for r := range rows {
         }
     }(r)
 }
-wg.Wait()
+wg.Wait() // join producers first: mutators after Finish return ErrFinished
 l.Finish("", l.Snapshot().Worst())
 ```
 

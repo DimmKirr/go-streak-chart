@@ -12,6 +12,27 @@ v1 adapter. Module `github.com/dimmkirr/go-streak-chart`, Go 1.26 (patch pinned 
 First consumer is devcell's `cell open` loading screen, which hands the TTY to `docker exec` afterwards, so the
 Loader must never enter raw mode or the alternate screen.
 
+## Usage
+
+How a host must drive `Loader` so the ticker never races the terminal. Keep the README's "Handing the
+terminal over" section and this list in sync.
+
+1. `l := streak.NewLoader(g, ...)`, `l.Start()`, then `defer l.Close()` on the next line. `Close` implements
+   `io.Closer`: if `Finish` was skipped it finishes with `grid.Worst()` and no footer text, else it is a no-op.
+   This guarantees the ticker goroutine is stopped on every exit path, including early returns and panics.
+2. Join every producer goroutine (`wg.Wait()`) before `Finish`. After `Finish`/`Close`, `Set`, `RowMessage`,
+   `Warn` and `Fail` return `ErrFinished` and write nothing; `Message` is a no-op. Treat `ErrFinished` as a
+   bug in the host's join logic, not as something to retry.
+3. `Finish` is synchronous: it closes the ticker, waits for the goroutine to exit, then writes the final frame
+   plus `\r\n` in one `Write` and calls `Flush()` if the writer has one. Only after it returns may the host
+   `exec`, `os.Exit`, or let another writer use the same TTY. Nothing else is needed: `os.Stdout`/`os.Stderr`
+   are unbuffered and `*os.File` loops on short writes.
+4. Do not write to the loader's stream while it runs. Redraw is cursor-up over the loader's own lines, so any
+   interleaved line shifts the frame. Use the other stream, or wait for `Finish`.
+5. Signals are the host's concern: on SIGINT/SIGTERM call `Finish` or `Close` before exiting.
+6. `teastreak`: Bubble Tea flushes the last `View` on `tea.Quit`; the host waits for `Program.Run` to return
+   before using the terminal. Send `teastreak.Finish` only after producers are joined.
+
 ## Commands
 
 ```sh

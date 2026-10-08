@@ -361,3 +361,93 @@ func TestLoader_WithWidth_TruncatesFrame(t *testing.T) {
 		}
 	}
 }
+
+func TestLoader_MutatorsAfterFinishReturnErrFinished(t *testing.T) {
+	var buf bytes.Buffer
+	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&buf), WithPlain(true))
+	l.Start()
+	l.Finish("done", Done)
+	n := buf.Len()
+	if err := l.Set(0, 0, Error); !errors.Is(err, ErrFinished) {
+		t.Fatalf("Set after Finish: got %v", err)
+	}
+	if err := l.RowMessage(0, "x", Running); !errors.Is(err, ErrFinished) {
+		t.Fatalf("RowMessage after Finish: got %v", err)
+	}
+	if err := l.Warn(0, 0, "x"); !errors.Is(err, ErrFinished) {
+		t.Fatalf("Warn after Finish: got %v", err)
+	}
+	if err := l.Fail(0, 0, "x"); !errors.Is(err, ErrFinished) {
+		t.Fatalf("Fail after Finish: got %v", err)
+	}
+	l.Message("late", Running)
+	if buf.Len() != n {
+		t.Fatalf("nothing may be written after Finish, got %q", buf.String()[n:])
+	}
+	if s, _ := l.Snapshot().Get(0, 0); s != Pending {
+		t.Fatal("grid must not change after Finish")
+	}
+}
+
+func TestLoader_CloseFinishesWithWorstStatus(t *testing.T) {
+	var buf bytes.Buffer
+	fc := newFakeClock()
+	l := NewLoader(NewGrid([]string{"A"}, 2), WithWriter(&buf), WithPlain(false), withClock(fc))
+	l.Start()
+	_ = l.Fail(0, 0, "boom")
+	_ = l.Set(0, 1, Done)
+	fc.Tick()
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-l.stopped:
+	case <-time.After(time.Second):
+		t.Fatal("Close must stop the ticker goroutine")
+	}
+	out := buf.String()
+	if !strings.HasSuffix(out, "\n") {
+		t.Fatalf("Close must leave the cursor on a fresh line, got %q", out)
+	}
+	if s := l.Snapshot().Worst(); s != Error {
+		t.Fatalf("worst = %v", s)
+	}
+	n := buf.Len()
+	l.Finish("again", Done)
+	if err := l.Close(); err != nil || buf.Len() != n {
+		t.Fatal("Close and Finish after Close must be no-ops")
+	}
+}
+
+func TestLoader_FinalFrameIsOneWrite(t *testing.T) {
+	var w countingWriter
+	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&w), WithPlain(false), withClock(newFakeClock()))
+	l.Start()
+	l.Finish("done", Done)
+	if w.writes != 1 {
+		t.Fatalf("final frame and newline must be a single write, got %d", w.writes)
+	}
+	if !strings.HasSuffix(w.buf.String(), "\r\n") {
+		t.Fatalf("final write must end with CRLF, got %q", w.buf.String())
+	}
+}
+
+func TestLoader_FinishFlushesBufferedWriter(t *testing.T) {
+	var w countingWriter
+	l := NewLoader(NewGrid([]string{"A"}, 1), WithWriter(&w), WithPlain(false), withClock(newFakeClock()))
+	l.Start()
+	l.Finish("done", Done)
+	if w.flushes != 1 {
+		t.Fatalf("Finish must flush a writer that supports it, got %d flushes", w.flushes)
+	}
+}
+
+// countingWriter records write and flush calls.
+type countingWriter struct {
+	buf     bytes.Buffer
+	writes  int
+	flushes int
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) { c.writes++; return c.buf.Write(p) }
+func (c *countingWriter) Flush() error                { c.flushes++; return nil }
