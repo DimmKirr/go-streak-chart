@@ -35,9 +35,17 @@ func main() {
 	nRows := flag.Int("rows", 3, "number of groups (rows)")
 	nCols := flag.Int("cols", 5, "number of components per group (columns)")
 	rowColsFlag := flag.String("rowcols", "", "comma-separated per-row active column counts (e.g. 5,3,4)")
+	glyph := flag.String("glyph", "", `tile glyph override, e.g. "▄" or "██" (default "■"); also used for the message square`)
+	gap := flag.String("gap", "", `gap between tiles override, e.g. "  " for a "██" tile (default " ")`)
 	flag.Parse()
 
 	th := streak.DefaultTheme()
+	if *glyph != "" {
+		th.Glyph, th.MessageGlyph = *glyph, *glyph
+	}
+	if *gap != "" {
+		th.Gap = *gap
+	}
 	switch *layout {
 	case "footer":
 		th.Layout = streak.FooterLayout

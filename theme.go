@@ -13,15 +13,15 @@ const (
 	// FooterLayout shows one status line under the rule, led by a pulsing
 	// square:
 	//
-	//	Init        ▄ ▄ ▄
+	//	Init        ■ ■ ■
 	//	─────────────────
-	//	▄ Processing Init: Config
+	//	■ Processing Init: Config
 	FooterLayout Layout = iota
 	// RowLayout shows each row's own status text after its cells and drops
 	// it once the row is done. No footer line is rendered:
 	//
-	//	Init        ▄ ▄ ▄  Processing Init: Config
-	//	Services    ▄ ▄ ▄  Waiting
+	//	Init        ■ ■ ■  Processing Init: Config
+	//	Services    ■ ■ ■  Waiting
 	//	─────────────────
 	RowLayout
 )
@@ -58,11 +58,13 @@ type Theme struct {
 	Message lipgloss.Style
 	// Rule styles the separator between the matrix and the message.
 	Rule lipgloss.Style
-	// Glyph is one matrix cell. Default "▄": a lower half block is roughly
-	// square in a terminal cell, and with the default one-space Gap the tile
-	// to gap ratio is 1:1 on both axes, like GitHub's contribution graph.
+	// Glyph is one matrix cell. Default "■" (black square): a centred
+	// square that leaves a visible gap on both axes with the default
+	// one-space Gap, like GitHub's contribution graph. "▄" (lower half
+	// block) is the heavier alternative; "██" with Gap "  " is a square at
+	// full text height but rows then touch.
 	Glyph string
-	// MessageGlyph is the square before the message text. Default "▄".
+	// MessageGlyph is the square before the message text. Default "■".
 	MessageGlyph string
 	// Gap separates cells. Default " ".
 	Gap string
@@ -110,8 +112,8 @@ func DefaultTheme() Theme {
 		Label:        lipgloss.NewStyle().Foreground(adaptive("#57606a", "#8b949e")),
 		Message:      lipgloss.NewStyle(),
 		Rule:         lipgloss.NewStyle().Foreground(adaptive("#d0d7de", "#484f58")),
-		Glyph:        "▄",
-		MessageGlyph: "▄",
+		Glyph:        "■",
+		MessageGlyph: "■",
 		Gap:          " ",
 		RuleChar:     "─",
 	}
