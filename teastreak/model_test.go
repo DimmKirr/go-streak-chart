@@ -101,7 +101,7 @@ func TestModel_WarnAndFail(t *testing.T) {
 	if len(issues) != 2 || issues[0].Status != streak.Warning || issues[1].Text != "broken" {
 		t.Fatalf("got %+v", issues)
 	}
-	if !strings.Contains(streak.StripANSI(m.View()), "■ broken") {
+	if !strings.Contains(streak.StripANSI(m.View()), "▄ broken") {
 		t.Fatalf("view must list issues:\n%s", m.View())
 	}
 }

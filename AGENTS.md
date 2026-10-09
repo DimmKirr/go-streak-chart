@@ -63,7 +63,7 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
 - **E2E** (`test/e2e/example_simple_loader_test.go`) builds `examples/simple-loader -fast` with `-buildvcs=false`
   (git stamping fails in sandboxes) and runs it under termoscope's headless PTY at 100x20. Tree:
   `TestExample_SimpleLoader/<Mode>/<Shape>/<Check>` with modes Footer, Row (scattered), Parallel, Beats, Plain and
-  shapes 3x5, 5x10. Sub-tests run in parallel. Each PTY check leaves PNG + SVG per screen and `recording.svg`
+  shapes 3x5, 5x10. Sub-tests run in parallel. Each PTY check leaves PNG + SVG per screen plus `recording.svg` and `recording.gif`
   under `test/results/<ts>-<Test>/`; look at them when a color/layout assertion fails.
 - **Screen reads race the child by design.** Wait predicates sample a live screen, so helpers like `rowHues`
   must return "not ready" (nil) when the screen changed between two reads, never index or dereference blindly.
@@ -82,8 +82,11 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   pins bubbletea 1.3.x / lipgloss 1.1.x). go-cmp and termenv are test-only.
 - **termoscope** (`github.com/dimmkirr/termoscope`, lowercase path; formerly termproof) is test/tooling-only:
   imported by `test/e2e` and run as `go tool termoscope` (a `tool` directive in go.mod) by `scripts/assets.sh`.
-  Pin a tagged release in go.mod once one exists past the rename: the old `v0.1.x` tags still declare module
-  `termproof`, so only post-rename versions resolve under the new path. For local work against a sibling checkout use a workspace and do not commit it:
+  The pin is a pseudo-version of the commit that renamed `svganim`/`gifanim` to `svg`/`gif` and introduced
+  `termoscope.Options` (`RecordWith(t, tm, Options)`); `v0.2.0` predates it and the old `v0.1.x` tags still
+  declare module `termproof`. Move to a tag once one is cut past that commit. This repo only calls `Start`,
+  `Record`, `SavePNG`, `SaveSVG` and the `record` CLI, so it never imports the renderer packages directly.
+  For local work against a sibling checkout use a workspace and do not commit it:
   `go work init . ../termoscope` (go.work is gitignored). Workspace mode cannot satisfy a placeholder version, so
   the require line must always be a real tag/pseudo-version or CI fails with "no required module provides
   package". After editing go.mod, tidy with `GOWORK=off`.
@@ -105,7 +108,7 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   from the TTY per draw, teastreak from WindowSizeMsg; lines are cut with `…` so inline notes never wrap and
   break the redraw), `Ramp map[Status]Ramp`,
   glyphs and rule chars. `Render`/`Lines` are pure and deterministic; the rule spans the full `Width` when it is
-  known (Loader/teastreak), else the matrix width, and never the text, so it never jitters. Default tile is `▄` with a one-space gap, chosen so tile:gap is 1:1 on
+  known (Loader/teastreak), else the matrix width, and never the text, so it never jitters. Default tile is `■` (black square) with a one-space gap, chosen so tile:gap stays visible on
   both axes (see the Linear design doc linked from README).
 - **Loader** (`loader.go`, `clock.go`): all methods take one mutex. `Start` spawns a ticker goroutine that
   pulses the message square's level 1→4→1. Redraw is `\r` + `ESC[nA` + `ESC[J` + frame, with frame lines joined
@@ -120,6 +123,6 @@ Linters: govet, staticcheck, errcheck, revive, gofmt (`.golangci.yml`). gofmt sw
   parallel (rows concurrent), scattered (two workers per row over a strided cell order), beats (rows in lockstep
   on stall scripts); row-based modes imply `-layout=row`. It injects one warning and three errors and exits 1
   when it did, which is part of the demo, so recorders ignore its exit code.
-- **README assets** (`scripts/assets.sh`): scene table `<name> <flags>`, one SVG per scene recorded at 80x16,
+- **README assets** (`scripts/assets.sh`): scene table `<name> <flags>`, one SVG per scene recorded at 100x16,
   embedded between `<!-- asset:NAME -->` markers. Adding a scene means: a table line, a marker pair in README,
   then `task assets -- NAME`; `docs:check` enforces all three.

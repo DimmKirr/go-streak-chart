@@ -188,7 +188,7 @@ func TestLoader_RowMessage_TTY_RowLayoutFrame(t *testing.T) {
 	_ = l.RowMessage(0, "Processing Init: Config", Running)
 	fc.Tick()
 	frame := StripANSI(buf.String())
-	if !strings.Contains(frame, "Init  ■ ■  Processing Init: Config") {
+	if !strings.Contains(frame, "Init  ▄ ▄  Processing Init: Config") {
 		t.Fatalf("row layout frame missing row text: %q", frame)
 	}
 	if strings.Count(frame, "\n") != 1 {
@@ -331,7 +331,7 @@ func TestLoader_Issues_StayInFinalFrame(t *testing.T) {
 	_ = l.Fail(0, 0, "Build of ABC failed")
 	l.Finish("Loading finished with errors", Error)
 	last := lastFrame(buf.String())
-	if !strings.Contains(last, "■ Build of ABC failed\n■ Loading finished with errors") {
+	if !strings.Contains(last, "▄ Build of ABC failed\n▄ Loading finished with errors") {
 		t.Fatalf("final frame must keep the issue above the footer: %q", last)
 	}
 }

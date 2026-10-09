@@ -46,10 +46,10 @@ func TestCellLevel(t *testing.T) {
 
 func TestDefaultTheme_GlyphsAreDistinct(t *testing.T) {
 	th := DefaultTheme()
-	if th.Glyph != "■" {
-		t.Fatalf("matrix glyph must be a single black square: a centred tile with visible gaps on both axes, got %q", th.Glyph)
+	if th.Glyph != "▄" {
+		t.Fatalf("matrix glyph must be a single lower half block: a square tile with equal gaps on both axes, got %q", th.Glyph)
 	}
-	if th.MessageGlyph != "■" {
+	if th.MessageGlyph != "▄" {
 		t.Fatalf("message glyph must match the tile weight, got %q", th.MessageGlyph)
 	}
 }

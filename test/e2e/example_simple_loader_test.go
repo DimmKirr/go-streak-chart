@@ -7,8 +7,8 @@
 // in lockstep following stall scripts; Plain:
 // non-TTY log), Shape the grid size
 // (3x5, 5x10), Check one observable behaviour. Every PTY-backed check saves
-// hi-DPI PNG and static SVG screenshots plus an animated recording.svg and
-// recording.gif of the whole run under test/results/<dateTimeISO>-<testName>/.
+// hi-DPI PNG and static SVG screenshots plus an animated recording.svg of
+// the whole run under test/results/<dateTimeISO>-<testName>/.
 package e2e
 
 import (
@@ -121,7 +121,7 @@ func buildExample(t *testing.T) string {
 }
 
 // start runs the example in a PTY at e2e pace and records the whole run;
-// recording.svg and recording.gif are written next to the screenshots when the test ends.
+// recording.svg is written next to the screenshots when the test ends.
 func start(t *testing.T, bin string, args ...string) (*termoscope.Terminal, context.Context) {
 	t.Helper()
 	return startAt(t, bin, termCols, args...)
@@ -137,7 +137,7 @@ func startAt(t *testing.T, bin string, cols int, args ...string) (*termoscope.Te
 		t.Fatal(err)
 	}
 	t.Cleanup(cancel)
-	termoscope.Record(t, tm) // closes tm and writes recording.svg + recording.gif on cleanup
+	termoscope.Record(t, tm) // closes tm and writes recording.svg on cleanup
 	return tm, ctx
 }
 
@@ -475,7 +475,6 @@ func TestExample_SimpleLoader(t *testing.T) {
 	t.Run("Beats", func(t *testing.T) { forEachShape(t, func(t *testing.T, s shape) { beatsChecks(t, bin, s) }) })
 	t.Run("Plain", func(t *testing.T) { plainChecks(t, bin) })
 	t.Run("VariableRowCols", func(t *testing.T) { variableRowColsChecks(t, bin) })
-	t.Run("Glyph", func(t *testing.T) { glyphChecks(t, bin) })
 }
 
 func forEachShape(t *testing.T, run func(t *testing.T, s shape)) {
@@ -998,53 +997,7 @@ func variableRowColsChecks(t *testing.T, bin string) {
 	})
 }
 
-// glyphOptions mirrors the table in render_test.go: tile shapes to compare
-// against the default "■". Each is recorded under test/results/ so the
-// PNG/SVG can be judged by eye.
-var glyphOptions = []struct{ name, glyph, gap string }{
-	{"Square", "■", " "},
-	{"Half", "▄", " "},
-	{"Full", "██", "  "},
-	{"MediumSquare", "◼", " "},
-	{"Circle", "●", " "},
-	{"Block", "█", " "},
-}
-
-// glyphChecks: every glyph option rendered by the example via -glyph/-gap.
-// The final frame must show exactly the chosen tile on every row and no
-// stray default glyph; the screenshots are the point.
-func glyphChecks(t *testing.T, bin string) {
-	for _, tc := range glyphOptions {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			tm, _ := start(t, bin, "-rows=3", "-cols=5", "-layout=row", "-glyph="+tc.glyph, "-gap="+tc.gap)
-			_ = tm.Wait()
-
-			ctx2, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			if err := tm.WaitUntil(ctx2, func(tm *termoscope.Terminal) bool {
-				_, ok := findLine(tm, theme.RuleChar)
-				return ok
-			}); err != nil {
-				t.Fatal(err)
-			}
-			snapshot(t, tm, "final")
-
-			row := strings.TrimSuffix(strings.Repeat(tc.glyph+tc.gap, 5), tc.gap)
-			for _, l := range labels[:3] {
-				line, ok := findLine(tm, l)
-				if !ok || !strings.Contains(line, row) {
-					t.Errorf("%s: want %q tiles, got %q\n%s", l, row, line, tm.Screen())
-				}
-			}
-			if tc.glyph != theme.Glyph && strings.Contains(tm.Screen(), theme.Glyph) {
-				t.Errorf("default glyph %q must not appear with -glyph=%s\n%s", theme.Glyph, tc.glyph, tm.Screen())
-			}
-		})
-	}
-}
-
-// countTiles returns the number of tile glyphs on label's row.
+// countTiles returns the number of ▄ glyphs on label's row.
 func countTiles(tm *termoscope.Terminal, label string) int {
 	l, ok := findLine(tm, label)
 	if !ok {

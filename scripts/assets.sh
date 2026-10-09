@@ -16,6 +16,7 @@ cd "$(dirname "$0")/.."
 
 scenes() {
   cat <<'TABLE'
+hero -mode=scattered -rows=5 -cols=10
 footer-layout
 row-layout -layout=row
 parallel-rows -mode=parallel
@@ -61,7 +62,7 @@ scenes | while read -r name flags; do
     case " $* " in *" $name "*) ;; *) continue ;; esac
   fi
   # shellcheck disable=SC2086
-  CGO_ENABLED=0 go tool termoscope record -o "docs/assets/$name.svg" -cols 80 -rows 16 -- "$bin" $flags \
+  CGO_ENABLED=0 go tool termoscope record -o "docs/assets/$name.svg" -cols 100 -rows 16 -- "$bin" $flags \
     || true  # the example exits 1 when it injects errors; that is part of the demo
 done
 
