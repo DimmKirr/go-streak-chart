@@ -15,13 +15,52 @@ func TestRender_Layout(t *testing.T) {
 	out := Render(g, Message{Text: "Processing Service: Messaging Service", Status: Running, Level: 2}, DefaultTheme())
 	lines := strings.Split(StripANSI(out), "\n")
 	want := []string{
-		"Init        ▄ ▄ ▄",
-		"Activation  ▄ ▄ ▄",
+		"Init        ■ ■ ■",
+		"Activation  ■ ■ ■",
 		"─────────────────",
-		"▄ Processing Service: Messaging Service",
+		"■ Processing Service: Messaging Service",
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Fatal(diff)
+	}
+}
+
+// glyphOptions are the tile shapes worth comparing against the default
+// "■". Shared with the e2e Glyph group, which records each one. "██" is the
+// only text-height square: two full blocks with a two-space gap keep
+// tile:gap at 1:1 horizontally. The rest are single-cell glyphs whose
+// rendered size depends on the font.
+var glyphOptions = []struct{ name, glyph, gap string }{
+	{"square", "■", " "},
+	{"half", "▄", " "},
+	{"full", "██", "  "},
+	{"medium-square", "◼", " "},
+	{"circle", "●", " "},
+	{"block", "█", " "},
+}
+
+// TestRender_GlyphOptions renders every glyph option through the default
+// theme and checks the tiles, the message square and the rule width.
+func TestRender_GlyphOptions(t *testing.T) {
+	for _, tc := range glyphOptions {
+		t.Run(tc.name, func(t *testing.T) {
+			th := DefaultTheme()
+			th.Glyph, th.MessageGlyph, th.Gap = tc.glyph, tc.glyph, tc.gap
+			g := NewGrid([]string{"Init", "Activation"}, 3)
+			_ = g.Set(0, 0, Done)
+			out := Render(g, Message{Text: "Processing Service: Messaging Service", Status: Running, Level: 2}, th)
+			lines := strings.Split(StripANSI(out), "\n")
+			row := strings.TrimSuffix(strings.Repeat(tc.glyph+tc.gap, 3), tc.gap)
+			want := []string{
+				"Init        " + row,
+				"Activation  " + row,
+				strings.Repeat("─", lipgloss.Width("Activation  "+row)),
+				tc.glyph + " Processing Service: Messaging Service",
+			}
+			if diff := cmp.Diff(want, lines); diff != "" {
+				t.Fatal(diff)
+			}
+		})
 	}
 }
 
@@ -70,7 +109,7 @@ func assertRuleWidth(t *testing.T, g *Grid, th Theme) int {
 
 func TestRender_RuleSpansWidestRow(t *testing.T) {
 	g := NewGrid([]string{"A", "LongerLabel"}, 2)
-	if got, want := assertRuleWidth(t, g, DefaultTheme()), len([]rune("LongerLabel  ▄ ▄")); got != want {
+	if got, want := assertRuleWidth(t, g, DefaultTheme()), len([]rune("LongerLabel  ■ ■")); got != want {
 		t.Fatalf("rule width %d, want %d", got, want)
 	}
 }
@@ -106,8 +145,8 @@ func TestRender_RowLayout_ShowsTextPerRow(t *testing.T) {
 	_ = g.SetRowMessage(1, Message{Text: "Waiting", Status: Pending})
 	lines := strings.Split(StripANSI(Render(g, Message{Text: "ignored footer"}, rowTheme())), "\n")
 	want := []string{
-		"Init        ▄ ▄ ▄  Processing Init: Logger",
-		"Activation  ▄ ▄ ▄  Waiting",
+		"Init        ■ ■ ■  Processing Init: Logger",
+		"Activation  ■ ■ ■  Waiting",
 		strings.Repeat("─", 42), // the widest line, text included
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
@@ -121,7 +160,7 @@ func TestRender_RowLayout_HidesTextWhenRowDone(t *testing.T) {
 	_ = g.Set(0, 1, Warning)
 	_ = g.SetRowMessage(0, Message{Text: "Processing Init: Logger", Status: Running})
 	lines := strings.Split(StripANSI(Render(g, Message{}, rowTheme())), "\n")
-	if lines[0] != "Init  ▄ ▄" {
+	if lines[0] != "Init  ■ ■" {
 		t.Fatalf("done row must drop its text, got %q", lines[0])
 	}
 }
@@ -140,7 +179,7 @@ func TestRender_RowLayout_RuleSpansWidestLine(t *testing.T) {
 	g := NewGrid([]string{"A"}, 1)
 	_ = g.SetRowMessage(0, Message{Text: strings.Repeat("x", 40), Status: Running})
 	th := rowTheme()
-	if got, want := assertRuleWidth(t, g, th), len([]rune("A  ▄  "))+40; got != want {
+	if got, want := assertRuleWidth(t, g, th), len([]rune("A  ■  "))+40; got != want {
 		t.Fatalf("rule width %d, want %d (row text included)", got, want)
 	}
 	th.Width = 20
@@ -174,12 +213,12 @@ func issueGrid() *Grid {
 func TestRender_FooterLayout_ListsIssuesBetweenRuleAndFooter(t *testing.T) {
 	lines := strings.Split(StripANSI(Render(issueGrid(), Message{Text: "Loading finished with errors", Status: Error, Level: 4}, DefaultTheme())), "\n")
 	want := []string{
-		"Init        ▄ ▄ ▄",
-		"Activation  ▄ ▄ ▄",
+		"Init        ■ ■ ■",
+		"Activation  ■ ■ ■",
 		"─────────────────",
-		"▄ Build of ABC failed",
-		"▄ Activation X did not go through",
-		"▄ Loading finished with errors",
+		"■ Build of ABC failed",
+		"■ Activation X did not go through",
+		"■ Loading finished with errors",
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Fatal(diff)
@@ -207,8 +246,8 @@ func TestRender_IssueSquareUsesStatusColor(t *testing.T) {
 func TestRender_RowLayout_InlineIssuesByDefault(t *testing.T) {
 	lines := strings.Split(StripANSI(Render(issueGrid(), Message{}, rowTheme())), "\n")
 	want := []string{
-		"Init        ▄ ▄ ▄  Activation X did not go through",
-		"Activation  ▄ ▄ ▄  Build of ABC failed",
+		"Init        ■ ■ ■  Activation X did not go through",
+		"Activation  ■ ■ ■  Build of ABC failed",
 		strings.Repeat("─", 50), // the widest line, text included
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
@@ -226,7 +265,7 @@ func TestRender_RowLayout_InlineIssues_JoinsNotesInOrderRecorded(t *testing.T) {
 	_ = g.Set(0, 0, Warning)
 	_ = g.SetNote(0, 0, "first")
 	lines := strings.Split(StripANSI(Render(g, Message{}, rowTheme())), "\n")
-	if lines[0] != "Init  ▄ ▄ ▄  second; first" {
+	if lines[0] != "Init  ■ ■ ■  second; first" {
 		t.Fatalf("notes must be joined in the order recorded, got %q", lines[0])
 	}
 }
@@ -239,7 +278,7 @@ func TestRender_RowLayout_InlineIssues_KeepsWarningRowMessage(t *testing.T) {
 	_ = g.Set(0, 1, Warning)
 	_ = g.SetRowMessage(0, Message{Text: "Secrets: 18 resolved, 1 failed", Status: Warning})
 	lines := strings.Split(StripANSI(Render(g, Message{}, rowTheme())), "\n")
-	if lines[0] != "Configure  ▄ ▄  Secrets: 18 resolved, 1 failed" {
+	if lines[0] != "Configure  ■ ■  Secrets: 18 resolved, 1 failed" {
 		t.Fatalf("warning row message must stay after completion, got %q", lines[0])
 	}
 	if len(lines) != 2 {
@@ -253,7 +292,7 @@ func TestRender_RowLayout_InlineIssues_DropsDoneRowMessage(t *testing.T) {
 	_ = g.Set(0, 1, Done)
 	_ = g.SetRowMessage(0, Message{Text: "Session services ready", Status: Done})
 	lines := strings.Split(StripANSI(Render(g, Message{}, rowTheme())), "\n")
-	if lines[0] != "Boot  ▄ ▄" {
+	if lines[0] != "Boot  ■ ■" {
 		t.Fatalf("a clean done row shows no text, got %q", lines[0])
 	}
 }
@@ -274,11 +313,11 @@ func TestRender_RowLayout_LogIssues_OptIn(t *testing.T) {
 	th.Issues = LogIssues
 	lines := strings.Split(StripANSI(Render(issueGrid(), Message{}, th)), "\n")
 	want := []string{
-		"Init        ▄ ▄ ▄",
-		"Activation  ▄ ▄ ▄",
+		"Init        ■ ■ ■",
+		"Activation  ■ ■ ■",
 		"─────────────────",
-		"▄ Build of ABC failed",
-		"▄ Activation X did not go through",
+		"■ Build of ABC failed",
+		"■ Activation X did not go through",
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Fatal(diff)
@@ -293,7 +332,7 @@ func TestRender_FooterLayout_InlineFallsBackToList(t *testing.T) {
 		t.Fatal("test assumes the defaults are FooterLayout + InlineIssues")
 	}
 	lines := strings.Split(StripANSI(Render(issueGrid(), Message{Text: "done", Status: Error}, th)), "\n")
-	if len(lines) != 6 || lines[3] != "▄ Build of ABC failed" || lines[5] != "▄ done" {
+	if len(lines) != 6 || lines[3] != "■ Build of ABC failed" || lines[5] != "■ done" {
 		t.Fatalf("footer layout must list issues under the rule:\n%s", strings.Join(lines, "\n"))
 	}
 }
@@ -335,7 +374,7 @@ func TestLines_TruncatesToThemeWidth(t *testing.T) {
 		}
 	}
 	first := StripANSI(Lines(g, Message{}, th)[0])
-	if !strings.HasSuffix(first, "…") || !strings.HasPrefix(first, "Services  ▄ ▄ ▄  Messaging") {
+	if !strings.HasSuffix(first, "…") || !strings.HasPrefix(first, "Services  ■ ■ ■  Messaging") {
 		t.Fatalf("row must be cut with an ellipsis, got %q", first)
 	}
 	th.Width = 0
