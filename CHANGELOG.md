@@ -7,6 +7,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-06
+
+### Fixed
+
+- fix(loader): hide the cursor (DECTCEM) on Start and show it again in the same write as the final frame in Finish — the blinking cursor no longer jumps around the matrix on every tick
+
 ## [0.3.1] - 2026-11-06
 
 ### Fixed
@@ -105,7 +111,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - chore(ci): pr/dev/release workflows sharing a lint, race-unit and e2e pipeline
 - chore(deps): require github.com/dimmkirr/termproof v0.1.0 and promote x/ansi and x/term to direct deps — CI no longer fails with "no required module provides package"; the local go.work is no longer needed
 
-[Unreleased]: https://github.com/DimmKirr/go-streak-chart/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/DimmKirr/go-streak-chart/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/DimmKirr/go-streak-chart/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/DimmKirr/go-streak-chart/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/DimmKirr/go-streak-chart/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/DimmKirr/go-streak-chart/compare/v0.1.2...v0.2.0
