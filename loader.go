@@ -96,9 +96,9 @@ func (l *Loader) decidePlain() bool {
 
 // Start begins redrawing. It is a no-op in plain mode or when already started.
 //
-// On a TTY writer, Start disables terminal echo so that keypresses (such as
-// Enter) do not inject stray newlines into the output and corrupt the
-// cursor-up redraw. Echo is restored by Finish or Close.
+// On a TTY writer, Start hides the cursor and disables terminal echo so that
+// the cursor does not visibly run during redraws and keypresses (such as
+// Enter) do not inject stray newlines. Both are restored by Finish or Close.
 func (l *Loader) Start() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -107,6 +107,7 @@ func (l *Loader) Start() {
 	}
 	l.started = true
 	if f, ok := l.w.(*os.File); ok && term.IsTerminal(f.Fd()) {
+		l.printf("\x1b[?25l") // DECTCEM: hide cursor
 		if restore, err := disableEcho(f); err == nil {
 			l.restoreEcho = restore
 		}
@@ -252,7 +253,7 @@ func (l *Loader) Finish(text string, s Status) {
 	}
 
 	l.mu.Lock()
-	l.draw("\r\n")
+	l.draw("\x1b[?25h\r\n") // DECTCEM: show cursor, then newline
 	l.drawn = 0
 	l.flush()
 	l.mu.Unlock()
