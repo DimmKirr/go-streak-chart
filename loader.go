@@ -35,6 +35,10 @@ func WithWidth(w int) Option { return func(l *Loader) { l.width = w } }
 // WithPlain forces plain mode on or off instead of detecting a TTY.
 func WithPlain(plain bool) Option { return func(l *Loader) { l.forcePlain = &plain } }
 
+// WithPulse enables or disables the level-cycling animation on Running cells.
+// Default true.
+func WithPulse(on bool) Option { return func(l *Loader) { l.noPulse = !on } }
+
 // WithIssues selects where Warning and Error notes are shown (see IssueMode).
 func WithIssues(m IssueMode) Option { return func(l *Loader) { l.theme.Issues = m } }
 
@@ -51,6 +55,8 @@ type Loader struct {
 	forcePlain *bool
 	width      int // explicit column cap; 0 = detect from the writer when it is a TTY
 	clock      clock
+
+	noPulse bool
 
 	mu          sync.Mutex
 	grid        *Grid
@@ -130,10 +136,12 @@ func (l *Loader) run() {
 		case <-ticks:
 			l.mu.Lock()
 			if !l.finished {
-				if l.msg.Status == Running {
-					l.msg.Level, l.dir = NextPulse(l.msg.Level, l.dir)
+				if !l.noPulse {
+					if l.msg.Status == Running {
+						l.msg.Level, l.dir = NextPulse(l.msg.Level, l.dir)
+					}
+					l.pulse, l.pulseDir = NextPulse(l.pulse, l.pulseDir)
 				}
-				l.pulse, l.pulseDir = NextPulse(l.pulse, l.pulseDir)
 				l.draw("")
 			}
 			l.mu.Unlock()

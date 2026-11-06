@@ -77,13 +77,20 @@ func WithIssues(mode streak.IssueMode) Option { return func(m *Model) { m.theme.
 // WithTick sets the pulse interval. Default 120ms.
 func WithTick(d time.Duration) Option { return func(m *Model) { m.tick = d } }
 
+// WithPulse enables or disables the level-cycling animation on Running cells.
+// Default true.
+func WithPulse(on bool) Option { return func(m *Model) { m.noPulse = !on } }
+
 // Model is a tea.Model rendering a streak.Grid.
 type Model struct {
-	grid  *streak.Grid
-	msg   streak.Message
-	theme streak.Theme
-	tick  time.Duration
-	dir   int
+	grid    *streak.Grid
+	msg     streak.Message
+	theme   streak.Theme
+	tick    time.Duration
+	dir     int
+	noPulse bool
+	pulse   streak.Level
+	pulseDir int
 }
 
 // New wraps g. The model owns g after this call.
@@ -123,8 +130,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.msg = streak.Message{Text: v.Text, Status: v.Status, Level: streak.MaxLevel}
 		return m, tea.Quit
 	case tickMsg:
-		if m.msg.Status == streak.Running {
-			m.msg.Level, m.dir = streak.NextPulse(m.msg.Level, m.dir)
+		if !m.noPulse {
+			if m.msg.Status == streak.Running {
+				m.msg.Level, m.dir = streak.NextPulse(m.msg.Level, m.dir)
+			}
+			m.pulse, m.pulseDir = streak.NextPulse(m.pulse, m.pulseDir)
 		}
 		return m, m.tickCmd()
 	case tea.WindowSizeMsg:
@@ -139,5 +149,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the frame with a trailing newline.
 func (m Model) View() string {
-	return streak.Render(m.grid, m.msg, m.theme) + "\n"
+	th := m.theme
+	if !m.noPulse {
+		th.PulseLevel = m.pulse
+	}
+	return streak.Render(m.grid, m.msg, th) + "\n"
 }

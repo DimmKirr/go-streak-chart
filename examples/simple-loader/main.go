@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
@@ -66,7 +67,7 @@ func main() {
 
 	step := 400 * time.Millisecond
 	if *fast {
-		step = 120 * time.Millisecond
+		step = 240 * time.Millisecond
 	}
 
 	rows, names := shape(*nRows, *nCols)
@@ -90,8 +91,13 @@ func main() {
 	l.Start()
 	defer l.Close() // stops the ticker on every exit path; a no-op after Finish
 
+	// jitter adds +-40% randomness so cells pulse at varied rates.
+	jitter := func(d time.Duration) time.Duration {
+		return d + time.Duration(float64(d)*(rand.Float64()*0.8-0.4))
+	}
+
 	// runCell processes one component: mark it running, publish its text,
-	// wait d, then land the outcome (one injected warning, three errors).
+	// wait d (with jitter), then land the outcome (one injected warning, three errors).
 	runCell := func(r, c int, d time.Duration) {
 		_ = l.Set(r, c, streak.Running)
 		if th.Layout == streak.RowLayout {
@@ -99,7 +105,7 @@ func main() {
 		} else {
 			l.Message("Processing "+rows[r]+": "+names[r][c], streak.Running)
 		}
-		time.Sleep(d)
+		time.Sleep(jitter(d))
 		switch {
 		case r == 1 && c == 3:
 			_ = l.Warn(r, c, "Search Service answered slowly, using cached index")
