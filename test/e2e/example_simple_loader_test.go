@@ -476,6 +476,7 @@ func TestExample_SimpleLoader(t *testing.T) {
 	t.Run("Plain", func(t *testing.T) { plainChecks(t, bin) })
 	t.Run("VariableRowCols", func(t *testing.T) { variableRowColsChecks(t, bin) })
 	t.Run("Glyph", func(t *testing.T) { glyphChecks(t, bin) })
+	t.Run("StrayInput", func(t *testing.T) { forEachShape(t, func(t *testing.T, s shape) { strayInputChecks(t, bin, s) }) })
 }
 
 func forEachShape(t *testing.T, run func(t *testing.T, s shape)) {
@@ -1042,6 +1043,64 @@ func glyphChecks(t *testing.T, bin string) {
 			}
 		})
 	}
+}
+
+// strayInputChecks: Enter keystrokes during the loader must not corrupt the
+// redraw. The Loader disables terminal echo so the echoed newlines do not
+// shift the cursor and leave ghost rows above the frame.
+func strayInputChecks(t *testing.T, bin string, s shape) {
+	t.Run("EnterDoesNotGrowFrame", func(t *testing.T) {
+		t.Parallel()
+		tm, ctx := start(t, bin, append(s.args(), "-mode=parallel")...)
+
+		if err := tm.WaitUntil(ctx, s.complete); err != nil {
+			t.Fatal(err)
+		}
+		snapshot(t, tm, "before-enter")
+
+		// Send several Enter keystrokes while the loader is running.
+		// Without echo suppression each one injects a newline that shifts
+		// the cursor, leaving a stale copy of the first row on screen.
+		for i := 0; i < 5; i++ {
+			_ = tm.Send("\r")
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		// The frame must still be a single valid grid: every label exactly
+		// once, all tiles present, rule in place. A broken redraw
+		// duplicates labels persistently, so a timeout means the fix is
+		// missing.
+		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		noGhostRows := func(tm *termoscope.Terminal) bool {
+			if !s.complete(tm) {
+				return false
+			}
+			screen := tm.Screen()
+			for _, l := range labels[:s.rows] {
+				if strings.Count(screen, l) != 1 {
+					return false
+				}
+			}
+			return true
+		}
+		if err := tm.WaitUntil(checkCtx, noGhostRows); err != nil {
+			t.Fatalf("stray Enter corrupted the frame:\n%s", tm.Screen())
+		}
+		snapshot(t, tm, "after-enter")
+		assertMatrix(t, tm, s)
+
+		_ = tm.Wait()
+		settle(t, tm, s)
+		snapshot(t, tm, "final")
+
+		screen := tm.Screen()
+		for _, l := range labels[:s.rows] {
+			if n := strings.Count(screen, l); n != 1 {
+				t.Errorf("label %q appears %d times in final frame:\n%s", l, n, screen)
+			}
+		}
+	})
 }
 
 // countTiles returns the number of tile glyphs on label's row.

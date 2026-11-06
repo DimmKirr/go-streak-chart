@@ -52,16 +52,17 @@ type Loader struct {
 	width      int // explicit column cap; 0 = detect from the writer when it is a TTY
 	clock      clock
 
-	mu       sync.Mutex
-	grid     *Grid
-	msg      Message
-	dir      int
-	plain    bool
-	started  bool
-	finished bool
-	drawn    int // lines of the frame currently on screen
-	stop     chan struct{}
-	stopped  chan struct{}
+	mu          sync.Mutex
+	grid        *Grid
+	msg         Message
+	dir         int
+	plain       bool
+	started     bool
+	finished    bool
+	drawn       int // lines of the frame currently on screen
+	stop        chan struct{}
+	stopped     chan struct{}
+	restoreEcho func() // restores terminal echo disabled during Start
 }
 
 // NewLoader wraps g. The loader owns g after this call.
@@ -94,6 +95,10 @@ func (l *Loader) decidePlain() bool {
 }
 
 // Start begins redrawing. It is a no-op in plain mode or when already started.
+//
+// On a TTY writer, Start disables terminal echo so that keypresses (such as
+// Enter) do not inject stray newlines into the output and corrupt the
+// cursor-up redraw. Echo is restored by Finish or Close.
 func (l *Loader) Start() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -101,6 +106,11 @@ func (l *Loader) Start() {
 		return
 	}
 	l.started = true
+	if f, ok := l.w.(*os.File); ok && term.IsTerminal(f.Fd()) {
+		if restore, err := disableEcho(f); err == nil {
+			l.restoreEcho = restore
+		}
+	}
 	l.stop = make(chan struct{})
 	l.stopped = make(chan struct{})
 	go l.run()
@@ -232,6 +242,8 @@ func (l *Loader) Finish(text string, s Status) {
 		return
 	}
 	started := l.started
+	restore := l.restoreEcho
+	l.restoreEcho = nil
 	l.mu.Unlock()
 
 	if started {
@@ -244,6 +256,10 @@ func (l *Loader) Finish(text string, s Status) {
 	l.drawn = 0
 	l.flush()
 	l.mu.Unlock()
+
+	if restore != nil {
+		restore()
+	}
 }
 
 // Close finishes the loader if the host has not already, using the grid's
