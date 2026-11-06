@@ -56,6 +56,8 @@ type Loader struct {
 	grid        *Grid
 	msg         Message
 	dir         int
+	pulse       Level // current pulse level for Running cells
+	pulseDir    int
 	plain       bool
 	started     bool
 	finished    bool
@@ -131,6 +133,7 @@ func (l *Loader) run() {
 				if l.msg.Status == Running {
 					l.msg.Level, l.dir = NextPulse(l.msg.Level, l.dir)
 				}
+				l.pulse, l.pulseDir = NextPulse(l.pulse, l.pulseDir)
 				l.draw("")
 			}
 			l.mu.Unlock()
@@ -282,6 +285,7 @@ func (l *Loader) draw(tail string) {
 	if th.Width == 0 {
 		th.Width = l.termWidth()
 	}
+	th.PulseLevel = l.pulse
 	lines := Lines(l.grid, l.msg, th)
 	var b strings.Builder
 	if l.drawn > 0 {

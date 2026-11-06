@@ -46,7 +46,11 @@ func Lines(g *Grid, m Message, t Theme) []string {
 			}
 			if c < active {
 				s, _ := g.Get(r, c)
-				b.WriteString(cell(t, t.Glyph, s, CellLevel(s)))
+				level := CellLevel(s)
+				if s == Running && t.PulseLevel > 0 {
+					level = t.PulseLevel
+				}
+				b.WriteString(cell(t, t.Glyph, s, level))
 			} else {
 				b.WriteString(strings.Repeat(" ", lipgloss.Width(t.Glyph)))
 			}

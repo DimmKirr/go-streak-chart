@@ -79,6 +79,9 @@ type Theme struct {
 	Width int
 	// RuleText, when set, replaces the spanning rule with literal text.
 	RuleText string
+	// PulseLevel, when > 0, overrides CellLevel for Running cells so they
+	// visually breathe. The Loader advances it on each tick.
+	PulseLevel Level
 }
 
 func adaptive(light, dark string) lipgloss.TerminalColor {
